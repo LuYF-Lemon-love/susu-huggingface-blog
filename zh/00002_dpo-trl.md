@@ -1,3 +1,12 @@
+<!--
+# zh/00002_dpo-trl.md
+# 
+# git pull from huggingface/transformers by LuYF-Lemon-love <luyanfeng_nlp@qq.com> on Mar 30, 2024
+# updated by LuYF-Lemon-love <luyanfeng_nlp@qq.com> on Mar 30, 2024
+# 
+# 使用 DPO 微调 Llama 2。
+-->
+
 # 使用 DPO 微调 Llama 2
 
 <p align="center">

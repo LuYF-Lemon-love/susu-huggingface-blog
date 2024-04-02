@@ -1,4 +1,4 @@
 #!/bin/bash
 git add .
-git commit -m "增加 使用 DPO 微调 Llama 2"
+git commit -m "增加 面向生产的 LLM 优化"
 git push

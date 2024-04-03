@@ -546,15 +546,15 @@ flush()
 - **[旋转位置嵌入 (Rotary Position Embedding， RoPE) ](https://arxiv.org/abs/2104.09864)**
 - **[ALiBi](https://arxiv.org/abs/2108.12409)**
 
-_RoPE_ 和 _ALiBi_ 都认为，最好直接在自注意力算法中向 LLM 提示语序，因为词元是通过自注意力机制互相关联的。更具体地说，应该通过修改 $\mathbf{QK}^T$ 的计算来提示语序。
+**_RoPE_ 和 _ALiBi_ 都认为，最好直接在自注意力算法中向 LLM 提示语序，因为词元是通过自注意力机制互相关联的。** 更具体地说，应该通过修改 $\mathbf{QK}^T$ 的计算来提示语序。
 
 简而言之， _RoPE_ 指出位置信息可以编码为 `查询 - 键值对` ， _如_ $\mathbf{q}_i$ 和 $\mathbf{x}_j$ 通过分别将每个向量根据其在句子中的位置 $i, j$ 旋转角度 $\theta \times i$ 和 $\theta \times j$:
 
 $$ \mathbf{\hat{q}}_i^T \mathbf{\hat{x}}_j = \mathbf{{q}} _i^T \mathbf{R}_ {\theta, i -j} \mathbf{{x}}_j. $$
 
-$\mathbf{R}_{\theta, i - j}$ 表示旋转矩阵。 $ \theta$ 在不可训练的预定义值，其值取决于训练期间最大输入序列长度。
+$\mathbf{R}_{\theta, i - j}$ 表示旋转矩阵。 $\theta$ 在不可训练的预定义值，其值取决于训练期间最大输入序列长度。
 
-> 通过这样做，$\mathbf{q}_i$ 和 $\mathbf{q}_j$ 之间的概率得分仅受 $i \ne j$ 是否成立这一条件影响，且其值仅取决于相对距离 $i - j$，而与每个向量的具体位置 $i$ 和  $j$ 无关。
+> **通过这样做，$\mathbf{q}_i$ 和 $\mathbf{q}_j$ 之间的概率得分仅受 $i \ne j$ 是否成立这一条件影响，且其值仅取决于相对距离 $i - j$，而与每个向量的具体位置 $i$ 和  $j$ 无关。**
 
 如今，多个最重要的 LLM 使用了 _RoPE_ ，例如:
 
@@ -562,34 +562,34 @@ $\mathbf{R}_{\theta, i - j}$ 表示旋转矩阵。 $ \theta$ 在不可训练的�
 - [**Llama**](https://arxiv.org/abs/2302.13971)
 - [**PaLM**](https://arxiv.org/pdf/2204.02311.pdf)
 
-另一个方案是 _ALiBi_ ， 它提出了一种更简单的相对位置编码方案。在计算 softmax 之前，$\mathbf{QK}^T$ 矩阵的每个元素会减去被一个预定义系数 `m` 缩放后的对应两个向量间的相对距离。
+**另一个方案是 _ALiBi_ ， 它提出了一种更简单的相对位置编码方案。在计算 softmax 之前，$\mathbf{QK}^T$ 矩阵的每个元素会减去被一个预定义系数 `m` 缩放后的对应两个向量间的相对距离。**
 
-![](/blog/assets/163_optimize_llm/alibi.png)
+![](../images/00003_optimize_llm/alibi.png)
 
-如 [ALiBi](https://arxiv.org/abs/2108.12409) 论文所示，这种简单的相对位置编码使得模型即使在很长的文本输入序列中也能保持高性能。
+**如 [ALiBi](https://arxiv.org/abs/2108.12409) 论文所示，这种简单的相对位置编码使得模型即使在很长的文本输入序列中也能保持高性能。**
 
 当前也有多个最重要的 LLM 使用了 _ALiBi_ ，如:
 
 - **MPT** [](https://huggingface.co/mosaicml/mpt-30b)
 - **BLOOM** [](https://huggingface.co/bigscience/bloom)
 
-_RoPE_ 和 _ALiBi_ 位置编码都可以外推到训练期间未见的输入长度，而事实证明，与 _RoPE_ 相比， _ALiBi_ 的外推效果要好得多。对于 ALiBi，只需简单地增加下三角位置矩阵的值以匹配输入序列的长度即可。而对于 _RoPE_ ，如果输入长度比训练期间的输入长得多，使用训练期间 $\theta$ 值的生成效果不好， _参见_ [Press et al.](https://arxiv.org/abs/2108.12409)。然而，社区已经找到了一些调整 $\theta$ 的有效技巧。从而允许 _RoPE_ 位置嵌入能够很好地应对输入序列外插的状况 (请参阅 [此处](https://github.com/huggingface/transformers/pull/24653))。
+**_RoPE_ 和 _ALiBi_ 位置编码都可以外推到训练期间未见的输入长度，而事实证明，与 _RoPE_ 相比， _ALiBi_ 的外推效果要好得多。** 对于 ALiBi，只需简单地增加下三角位置矩阵的值以匹配输入序列的长度即可。而对于 _RoPE_ ，如果输入长度比训练期间的输入长得多，使用训练期间 $\theta$ 值的生成效果不好， _参见_ [Press et al.](https://arxiv.org/abs/2108.12409)。然而，社区已经找到了一些调整 $\theta$ 的有效技巧。从而允许 _RoPE_ 位置嵌入能够很好地应对输入序列外插的状况 (请参阅 [此处](https://github.com/huggingface/transformers/pull/24653))。
 
 > RoPE 和 ALiBi 都是相对位置嵌入，其嵌入参数是 _不可_ 训练的，而是基于以下直觉:
 
-- 有关输入文本的位置提示应直接提供给自注意力层的 $QK^T$ 矩阵
-- 应该激励 LLM 学习基于恒定 _相对_ 距离的位置编码
-- 输入词元间彼此距离越远，它们的 `查询 - 键` 概率越低。 RoPE 和 ALiBi 都降低了距离较远词元间的 `查询 - 键` 概率。RoPE 通过增加 `查询 - 键` 向量之间的夹角来减少它们的向量积。而 ALiBi 通过从向量积中减去一个更大的数来达成这个目的。
+- **有关输入文本的位置提示应直接提供给自注意力层的 $QK^T$ 矩阵**
+- **应该激励 LLM 学习基于恒定 _相对_ 距离的位置编码**
+- **输入词元间彼此距离越远，它们的 `查询 - 键` 概率越低。 RoPE 和 ALiBi 都降低了距离较远词元间的 `查询 - 键` 概率。RoPE 通过增加 `查询 - 键` 向量之间的夹角来减少它们的向量积。而 ALiBi 通过从向量积中减去一个更大的数来达成这个目的。**
 
-总之，打算部署在需要处理长文本输入的任务中的 LLM 可以通过相对位置嵌入 (例如 RoPE 和 ALiBi) 来进行更好的训练。另请注意，使用了 RoPE 和 ALiBi 的 LLM 即使是仅在固定长度 (例如 $ N_1 = 2048$) 上训练的，其仍然可以在推理时通过位置嵌入外插来处理比 $N_1$ 长得多的文本输入 (如 $N_2 = 8192 > N_1$)。
+总之，打算部署在需要处理长文本输入的任务中的 LLM 可以通过相对位置嵌入 (例如 RoPE 和 ALiBi) 来进行更好的训练。另请注意，使用了 RoPE 和 ALiBi 的 LLM 即使是仅在固定长度 (例如 $N_1 = 2048$) 上训练的，其仍然可以在推理时通过位置嵌入外插来处理比 $N_1$ 长得多的文本输入 (如 $N_2 = 8192 > N_1$)。
 
 ### 3.2 键值缓存
 
-使用 LLM 进行自回归文本生成的工作原理是把输入序列输入给模型，并采样获得下一个词元，再将获得的词元添加到输入序列后面，如此往复，直到 LLM 生成一个表示结束的词元。
+**使用 LLM 进行自回归文本生成的工作原理是把输入序列输入给模型，并采样获得下一个词元，再将获得的词元添加到输入序列后面，如此往复，直到 LLM 生成一个表示结束的词元。**
 
 请查阅 [Transformer 的文本生成教程](https://huggingface.co/docs/transformers/llm_tutorial#generate-text) 以更直观地了解自回归生成的工作原理。
 
-下面，我们快速运行一个代码段来展示自回归是如何工作的。我们简单地使用 `torch.argmax` 获取最有可能的下一个词元。
+**下面，我们快速运行一个代码段来展示自回归是如何工作的。我们简单地使用 `torch.argmax` 获取最有可能的下一个词元。**
 
 ```python
 input_ids = tokenizer(prompt, return_tensors="pt")["input_ids"].to("cuda")
@@ -616,13 +616,13 @@ shape of input_ids torch.Size([1, 25])
 [' Here is a Python function']
 ```
 
-正如我们所看到的，每次我们都把刚刚采样出的词元添加到输入文本中。
+**正如我们所看到的，每次我们都把刚刚采样出的词元添加到输入文本中。**
 
-除了极少数例外，LLM 都是基于因果语言模型的目标函数进行训练的，因此我们不需要注意力矩阵的上三角部分 - 这就是为什么在上面的两个图中，上三角的注意力分数是空的 ( _也即_ 概率为 0)。想要快速入门因果语言模型，你可以参考这篇 _图解自注意力_ [](https://jalammar.github.io/illustrated-gpt2/#part-2-illustrated-self-attention) 博文。
+除了极少数例外，LLM 都是基于因果语言模型的目标函数进行训练的，因此我们不需要注意力矩阵的上三角部分 - 这就是为什么在上面的两个图中，上三角的注意力分数是空的 ( _也即_ 概率为 0)。想要快速入门因果语言模型，你可以参考这篇 [_图解自注意力_](https://jalammar.github.io/illustrated-gpt2/#part-2-illustrated-self-attention) 博文。
 
-因此，当前词元 _永远仅_ 依赖于其前面的词元，更具体地说，$\mathbf{q} _i$ 向量永远与任何 $j > i$ 的键、值向量无关联。相反 $\mathbf{q} _i$ 仅关注其之前的键、值向量 $\mathbf{k}_ {m < i}, \mathbf{v}_ {m < i} \text{，} m \in {0, \ldots i - 1}$。为了减少不必要的计算，因此可以把先前所有步的每一层的键、值向量缓存下来。
+**因此，当前词元 _永远仅_ 依赖于其前面的词元，更具体地说，$\mathbf{q} _i$ 向量永远与任何 $j > i$ 的键、值向量无关联。相反 $\mathbf{q} _i$ 仅关注其之前的键、值向量 $\mathbf{k}_ {m < i}, \mathbf{v}_ {m < i} \text{，} m \in {0, \ldots i - 1}$。为了减少不必要的计算，因此可以把先前所有步的每一层的键、值向量缓存下来。**
 
-接下来，我们将告诉 LLM 在每次前向传播中都利用键值缓存来减少计算量。在 Transformers 中，我们可以通过将 `use_cache` 参数传给 `forward` 来利用键值缓存，这样的话，每次推理仅需传当前词元给 `forward` 就可以。
+接下来，我们将告诉 LLM 在每次前向传播中都利用键值缓存来减少计算量。**在 Transformers 中，我们可以通过将 `use_cache` 参数传给 `forward` 来利用键值缓存，这样的话，每次推理仅需传当前词元给 `forward` 就可以。**
 
 ```python
 past_key_values = None # past_key_values is the key-value cache
@@ -634,8 +634,13 @@ for _ in range(5):
   next_logits = next_logits[:, -1:]
   next_token_id = torch.argmax(next_logits, dim=-1)
 
-  print("shape of input_ids", input_ids.shape)
-  print("length of key-value cache", len(past_key_values[0][0])) # past_key_values are of shape [num_layers, 0 for k, 1 for v, batch_size, length, hidden_dim]
+  print("shape of input_ids", next_token_id.shape)
+  # past_key_values are a tuple (one for each Transformer layer) of tuples (one for the keys, one for the values)
+  # cached keys and values each are of shape (batch_size, num_heads, sequence_length, embed_size_per_head)
+  # hence let's print how many cached keys and values we have for the first Transformer layer
+  print("number of cached keys of the first Transformer layer", len(past_key_values[0][0][0,0,:,:]))
+  print("number of cached values of the first Transformer layer", len(past_key_values[0][1][0,0,:,:]))
+  
   generated_tokens.append(next_token_id.item())
 
 generated_text = tokenizer.batch_decode(generated_tokens)
@@ -645,31 +650,36 @@ generated_text
 **输出**:
 
 ```
-shape of input_ids torch.Size([1, 20])
-length of key-value cache 20
-shape of input_ids torch.Size([1, 20])
-length of key-value cache 21
-shape of input_ids torch.Size([1, 20])
-length of key-value cache 22
-shape of input_ids torch.Size([1, 20])
-length of key-value cache 23
-shape of input_ids torch.Size([1, 20])
-length of key-value cache 24
+shape of input_ids torch.Size([1, 1])
+number of cached keys of the first Transformer layer: 20
+number of cached values of the first Transformer layer: 20
+shape of input_ids torch.Size([1, 1])
+number of cached keys of the first Transformer layer: 21
+number of cached values of the first Transformer layer: 21
+shape of input_ids torch.Size([1, 1])
+number of cached keys of the first Transformer layer: 22
+number of cached values of the first Transformer layer: 22
+shape of input_ids torch.Size([1, 1])
+number of cached keys of the first Transformer layer: 23
+number of cached values of the first Transformer layer: 23
+shape of input_ids torch.Size([1, 1])
+number of cached keys of the first Transformer layer: 24
+number of cached values of the first Transformer layer: 24
 [' Here', ' is', ' a', ' Python', ' function']
 ```
 
-正如我们所看到的，当使用键值缓存时，输入文本的长度 _没有_ 增加，每次都只有一个向量。另一方面，键值缓存的长度每解码步都增加了一。
+**正如我们所看到的，当使用键值缓存时，输入文本的长度 _没有_ 增加，每次都只有一个向量。另一方面，键值缓存的长度每解码步都增加了一。**
 
-> 利用键值缓存意味着 $\mathbf{QK}^T$ 本质上减少为 $\mathbf{q}_c\mathbf{K}^T$，其中 $\mathbf{q}_c$ 是当前输入词元的查询投影，它 _始终_ 只是单个向量。
+> **利用键值缓存意味着 $\mathbf{QK}^T$ 本质上减少为 $\mathbf{q}_c\mathbf{K}^T$，其中 $\mathbf{q}_c$ 是当前输入词元的查询投影，它 _始终_ 只是单个向量。**
 
 使用键值缓存有两个优点:
 
-- 与计算完整的 $\mathbf{QK}^T$ 矩阵相比，计算量更小，计算效率显著提高，因此推理速度也随之提高。
-- 所需的最大内存不随生成的词元数量呈二次方增加，而仅呈线性增加。
+- **与计算完整的 $\mathbf{QK}^T$ 矩阵相比，计算量更小，计算效率显著提高，因此推理速度也随之提高。**
+- **所需的最大内存不随生成的词元数量呈二次方增加，而仅呈线性增加。**
 
-> 用户应该 _始终_ 使用键值缓存，因为它的生成结果相同且能显著加快长输入序列的生成速度。当使用文本 pipeline 或 [`generate` 方法](https://huggingface.co/docs/transformers/main_classes/text_generation) 时，Transformers 默认启用键值缓存。
+> **用户应该 _始终_ 使用键值缓存，因为它的生成结果相同且能显著加快长输入序列的生成速度。当使用文本 pipeline 或 [`generate` 方法](https://huggingface.co/docs/transformers/main_classes/text_generation) 时，Transformers 默认启用键值缓存。**
 
-请注意，键值缓存对于聊天等需要多轮自回归解码的应用程序特别有用。我们看一个例子。
+**请注意，键值缓存对于聊天等需要多轮自回归解码的应用程序特别有用。** 我们看一个例子。
 
 ```
 User: How many people live in France?
@@ -680,17 +690,15 @@ Assistant: Germany has ca. 81 million inhabitants
 
 在这个聊天示例中，LLM 需自回归解码两次:
 
-
 1. 第一次，键值缓存为空，输入提示为 `"User: How many people live in France?"` ，模型自回归生成文本 `"Roughly 75 million people live in France"` ，同时在每个解码步添加键值缓存。
 2. 第二次输入提示为 `"User: How many people live in France? \n Assistant: Roughly 75 million people live in France \n User: And how many in Germany?"` 。由于缓存，前两个句子的所有键值向量都已经计算出来。因此输入提示仅包含 `"User: And how many in Germany?"` 。在处理缩短的输入提示时，计算出的键值向量将添加到第一次解码的键值缓存后面。然后，助手使用键值缓存自回归地生成第二个问题的答案 `"Germany has ca. 81 million inhabitants"` ，该键值缓存是 `"User: How many people live in France? \n Assistant: Roughly 75 million people live in France \n User: And how many are in Germany?"` 的编码向量序列。
 
 这里需要注意两件事:
 
+1. **保留所有上下文对于在聊天场景中部署的 LLM 至关重要，以便 LLM 理解对话的所有上文。例如，上面的示例中，LLM 需要了解用户在询问 `"And how many are in Germany"` 时指的是人口。**
+2. **键值缓存对于聊天非常有用，因为它允许我们不断增长聊天历史记录的编码缓存，而不必对聊天历史记录从头开始重新编码 (当使用编码器 - 解码器时架构时我们就不得不这么做)。**
 
-1. 保留所有上下文对于在聊天场景中部署的 LLM 至关重要，以便 LLM 理解对话的所有上文。例如，上面的示例中，LLM 需要了解用户在询问 `"And how many are in Germany"` 时指的是人口。
-2. 键值缓存对于聊天非常有用，因为它允许我们不断增长聊天历史记录的编码缓存，而不必对聊天历史记录从头开始重新编码 (当使用编码器 - 解码器时架构时我们就不得不这么做)。
-
-然而，还有一个问题。虽然 $\mathbf{QK}^T$ 矩阵所需的峰值内存显著减少，但对于长输入序列或多轮聊天，将键值缓存保留在内存中还是会非常昂贵。请记住，键值缓存需要存储先前所有输入向量 $\mathbf{x}_i \text{, for } i \in {1, \ldots, c - 1}$ 的所有层、所有注意力头的键值向量。
+然而，还有一个问题。**虽然 $\mathbf{QK}^T$ 矩阵所需的峰值内存显著减少，但对于长输入序列或多轮聊天，将键值缓存保留在内存中还是会非常昂贵。请记住，键值缓存需要存储先前所有输入向量 $\mathbf{x}_i \text{, for } i \in {1, \ldots, c - 1}$ 的所有层、所有注意力头的键值向量。**
 
 我们计算一下我们之前使用的 LLM `bigcode/octocoder` 需要存储在键值缓存中的浮点数的个数。浮点数的个数等于序列长度的两倍乘以注意力头的个数乘以注意力头的维度再乘以层数。假设输入序列长度为 16000，我们计算得出:
 
@@ -705,7 +713,7 @@ config = model.config
 7864320000
 ```
 
-大约 80 亿个浮点数！以 `float16` 精度存储 80 亿个浮点值需要大约 15 GB 的显存，大约是模型本身权重的一半！
+**大约 80 亿个浮点数！以 `float16` 精度存储 80 亿个浮点值需要大约 15 GB 的显存，大约是模型本身权重的一半！**
 
 研究人员提出了两种方法，用于显著降低键值缓存的内存成本:
 
@@ -714,13 +722,13 @@ config = model.config
 
     多查询注意力机制是 Noam Shazeer 在 _Fast Transformer Decoding: One Write-Head is All You Need_ 论文中提出的。正如标题所示，Noam 发现，可以在所有注意力头之间共享同一对键、值投影权重，而不是使用 `n_head` 对键值投影权重，这并不会显著降低模型的性能。
 
-    > 通过共享同一对键、值投影权重，键值向量 $\mathbf{k}_i, \mathbf{v}_i$ 在所有注意力头上相同，这意味着我们只需要缓存 1 个键值投影对，而不需要 `n_head` 对。
+    > **通过共享同一对键、值投影权重，键值向量 $\mathbf{k}_i, \mathbf{v}_i$ 在所有注意力头上相同，这意味着我们只需要缓存 1 个键值投影对，而不需要 `n_head` 对。**
 
     由于大多数 LLM 有 20 到 100 个注意力头，MQA 显著减少了键值缓存的内存消耗。因此，对于本文中使用的 LLM，假设输入序列长度为 16000，其所需的内存消耗从 15 GB 减少到不到 400 MB。
 
-    除了节省内存之外，MQA 还可以提高计算效率。在自回归解码中，需要重新加载大的键值向量，与当前的键值向量对相串接，然后将其输入到每一步的 $\mathbf{q}_c\mathbf{K}^T$ 计算中。对于自回归解码，不断重新加载所需的内存带宽可能成为严重的性能瓶颈。通过减少键值向量的大小，需要访问的内存更少，从而减少内存带宽瓶颈。欲了解更多详细信息，请查看 [Noam 的论文](https://arxiv.org/abs/1911.02150)。
+    除了节省内存之外，MQA 还可以提高计算效率。在自回归解码中，需要重新加载大的键值向量，与当前的键值向量对相串接，然后将其输入到每一步的 $\mathbf{q}_c\mathbf{K}^T$ 计算中。**对于自回归解码，不断重新加载所需的内存带宽可能成为严重的性能瓶颈。** 通过减少键值向量的大小，需要访问的内存更少，从而减少内存带宽瓶颈。欲了解更多详细信息，请查看 [Noam 的论文](https://arxiv.org/abs/1911.02150)。
 
-    这里的重点是，只有使用键值缓存时，将键值注意力头的数量减少到 1 才有意义。没有键值缓存时，模型单次前向传播的峰值内存消耗保持不变，因为每个注意力头查询向量不同，因此每个注意力头的 $\mathbf{QK}^T$ 矩阵也不相同。
+    **这里的重点是，只有使用键值缓存时，将键值注意力头的数量减少到 1 才有意义。** 没有键值缓存时，模型单次前向传播的峰值内存消耗保持不变，因为每个注意力头查询向量不同，因此每个注意力头的 $\mathbf{QK}^T$ 矩阵也不相同。
 
     MQA 已被社区广泛采用，现已被许多流行的 LLM 所采用:
 
@@ -733,16 +741,16 @@ config = model.config
 
 2. [分组查询注意力 (Grouped-Query-Attention，GQA) ](https://arxiv.org/abs/2305.13245)
 
-    分组查询注意力由来自 Google 的 Ainslie 等人提出，它们发现，与原始的多头键值投影相比，使用 MQA 通常会导致生成质量下降。该论文认为，通过不太大幅度地减少查询头投影权重的数量可以获得更高的模型性能。不应仅使用单个键值投影权重，而应使用 `n < n_head` 个键值投影权重。通过将 `n` 设为比 `n_head` 小得多的值 (例如 2，4 或 8)，几乎可以保留 MQA 带来的所有内存和速度增益，同时更少地牺牲模型能力，或者说说仅略微牺牲模型性能。
+    分组查询注意力由来自 Google 的 Ainslie 等人提出，它们发现，与原始的多头键值投影相比，使用 MQA 通常会导致生成质量下降。该论文认为，通过不太大幅度地减少查询头投影权重的数量可以获得更高的模型性能。**不应仅使用单个键值投影权重，而应使用 `n < n_head` 个键值投影权重。通过将 `n` 设为比 `n_head` 小得多的值 (例如 2，4 或 8)，几乎可以保留 MQA 带来的所有内存和速度增益，同时更少地牺牲模型能力，或者说说仅略微牺牲模型性能。**
 
-    此外，GQA 的作者发现，现有的模型检查点可以通过 _升级训练_ ，变成 GQA 架构，而其所需的计算量仅为原始预训练计算的 5%。虽然 5% 的原始预训练计算量仍然很大，但 GQA _升级训练_ 允许现有 checkpoint 通过这个机制，升级成能处理长输入序列的 checkpoint，这点还是挺诱人的。
+    此外，**GQA 的作者发现，现有的模型检查点可以通过 _升级训练_ ，变成 GQA 架构，而其所需的计算量仅为原始预训练计算的 5%。虽然 5% 的原始预训练计算量仍然很大，但 GQA _升级训练_ 允许现有 checkpoint 通过这个机制，升级成能处理长输入序列的 checkpoint，这点还是挺诱人的。**
 
     GQA 最近才被提出，这就是为什么截至本文撰写时其被采用得较少。GQA 最著名的应用是 [Llama-v2](https://huggingface.co/meta-llama/Llama-2-70b-hf)。
 
-    > 总之，如果部署自回归解码的 LLM 并且需要处理长输入序列 (例如聊天)，我们强烈建议使用 GQA 或 MQA。
+    > **总之，如果部署自回归解码的 LLM 并且需要处理长输入序列 (例如聊天)，我们强烈建议使用 GQA 或 MQA。**
 
 ## 总结
 
-研究界不断提出新的、巧妙的方法来加速更大的 LLM 的推理。举个例子，一个颇有前景的研究方向是 [投机解码](https://arxiv.org/abs/2211.17192)，其中“简单词元”是由更小、更快的语言模型生成的，而只有“难词元”是由 LLM 本身生成的。详细介绍超出了本文的范围，但可以阅读这篇 [不错的博文](https://huggingface.co/blog/cn/assisted-generation)。
+研究界不断提出新的、巧妙的方法来加速更大的 LLM 的推理。**举个例子，一个颇有前景的研究方向是 [投机解码](https://arxiv.org/abs/2211.17192)，其中“简单词元”是由更小、更快的语言模型生成的，而只有“难词元”是由 LLM 本身生成的。** 详细介绍超出了本文的范围，但可以阅读这篇 [不错的博文](https://huggingface.co/blog/zh/assisted-generation)。
 
 GPT3/4、Llama-2-70b、Claude、PaLM 等海量 LLM 能够在 [Hugging Face Chat](https://huggingface.co/chat/) 或 ChatGPT 等聊天应用中快速运行的原因是很大一部分归功于上述精度、算法和架构方面的改进。展望未来，GPU、TPU 等加速器只会变得更快且内存更大，但人们仍然应该始终确保使用最好的可用算法和架构来获得最大的收益 🤗。

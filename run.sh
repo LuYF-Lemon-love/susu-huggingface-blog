@@ -1,4 +1,4 @@
 #!/bin/bash
 git add .
-git commit -m "增加 “StackLLaMA”: 用 RLHF 训练 LLaMA 的手把手教程"
+git commit -m "增加 开源大语言模型作为 LangChain 智能体"
 git push

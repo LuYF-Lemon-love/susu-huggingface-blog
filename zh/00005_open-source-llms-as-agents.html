@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>zh&sol;00005&lowbar;open-source-llms-as-agents&period;md</title>
+        <style>
+/* From extension vscode.github */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.vscode-dark img[src$=\#gh-light-mode-only],
+.vscode-light img[src$=\#gh-dark-mode-only] {
+	display: none;
+}
+
+/* From extension ms-toolsai.jupyter */
+/* These classnames are inherited from bootstrap, but are present in most notebook renderers */
+
+.alert {
+    width: auto;
+    padding: 1em;
+    margin-top: 1em;
+    margin-bottom: 1em;
+}
+.alert > *:last-child {
+    margin-bottom: 0;
+}
+#preview > .alert:last-child {
+    /* Prevent this being set to zero by the default notebook stylesheet */
+    padding-bottom: 1em;
+}
+
+.alert-success {
+    /* Note there is no suitable color available, so we just copy "info" */
+    background-color: var(--theme-info-background);
+    color: var(--theme-info-foreground);
+}
+.alert-info {
+    background-color: var(--theme-info-background);
+    color: var(--theme-info-foreground);
+}
+.alert-warning {
+    background-color: var(--theme-warning-background);
+    color: var(--theme-warning-foreground);
+}
+.alert-danger {
+    background-color: var(--theme-error-background);
+    color: var(--theme-error-foreground);
+}
+
+</style>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex/dist/katex.min.css">
+<link href="https://cdn.jsdelivr.net/npm/katex-copytex@latest/dist/katex-copytex.min.css" rel="stylesheet" type="text/css">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/markdown.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/highlight.css">
+<style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif;
+                font-size: 14px;
+                line-height: 1.6;
+            }
+        </style>
+        <style>
+.task-list-item {
+    list-style-type: none;
+}
+
+.task-list-item-checkbox {
+    margin-left: -20px;
+    vertical-align: middle;
+    pointer-events: none;
+}
+</style>
+        
+    </head>
+    <body class="vscode-body vscode-light">
+        <!--
+# zh/00005_open-source-llms-as-agents.md
+# 
+# git pull from huggingface/transformers by LuYF-Lemon-love <luyanfeng_nlp@qq.com> on Apr 3, 2024
+# updated by LuYF-Lemon-love <luyanfeng_nlp@qq.com> on Apr 3, 2024
+# 
+# 开源大语言模型作为 LangChain 智能体。
+-->
+<h1 id="开源大语言模型作为-langchain-智能体">开源大语言模型作为 LangChain 智能体</h1>
+<p align="center">
+    <img src="file:////home/luyanfeng/my_code/github/huggingface/susu-huggingface-blog/images/00005_open-source-llms-as-agents/thumbnail_open_source_agents.png" width="500" />
+</p>
+<h2 id="概要">概要</h2>
+<p>开源大型语言模型 (LLMs) 现已达到一种性能水平，使它们适合作为推动智能体工作流的推理引擎: <a href="https://huggingface.co/blog/mixtral">Mixtral</a> 甚至在我们的基准测试中 <a href="https://chat.openai.com/c/a130c62f-e9ac-4ad7-9261-832da1c2c9b5#results">超过了 GPT-3.5</a>，并且通过微调，其性能可以轻易的得到进一步增强。</p>
+<h2 id="引言">引言</h2>
+<p><strong>针对 <a href="https://huggingface.co/docs/transformers/tasks/language_modeling">因果语言建模</a> 训练的大型语言模型 (LLMs) 可以处理广泛的任务，但它们经常在逻辑、计算和搜索等基本任务上遇到困难。最糟糕的情况是，它们在某个领域，比如数学，表现不佳，却仍然试图自己处理所有计算。</strong></p>
+<p><strong>为了克服这一弱点，除其他方法外，可以将 LLM 整合到一个系统中，在该系统中，它可以调用工具: 这样的系统称为 LLM 智能体。</strong></p>
+<p>在这篇文章中，我们将解释 ReAct 智能体的内部工作原理，然后展示如何使用最近在 LangChain 中集成的 <code>ChatHuggingFace</code> 类来构建它们。最后，我们将几个开源 LLM 与 GPT-3.5 和 GPT-4 进行基准测试。</p>
+<h2 id="目录">目录</h2>
+<ul>
+<li><a href="#%E5%BC%80%E6%BA%90%E5%A4%A7%E8%AF%AD%E8%A8%80%E6%A8%A1%E5%9E%8B%E4%BD%9C%E4%B8%BA-langchain-%E6%99%BA%E8%83%BD%E4%BD%93">开源大语言模型作为 LangChain 智能体</a>
+<ul>
+<li><a href="#%E6%A6%82%E8%A6%81">概要</a></li>
+<li><a href="#%E5%BC%95%E8%A8%80">引言</a></li>
+<li><a href="#%E7%9B%AE%E5%BD%95">目录</a></li>
+<li><a href="#%E4%BB%80%E4%B9%88%E6%98%AF%E6%99%BA%E8%83%BD%E4%BD%93">什么是智能体？</a>
+<ul>
+<li><a href="#react-%E6%99%BA%E8%83%BD%E4%BD%93%E5%86%85%E9%83%A8%E5%B7%A5%E4%BD%9C%E5%8E%9F%E7%90%86%E7%A4%BA%E4%BE%8B">ReAct 智能体内部工作原理示例</a></li>
+<li><a href="#%E6%99%BA%E8%83%BD%E4%BD%93%E7%B3%BB%E7%BB%9F%E7%9A%84%E6%8C%91%E6%88%98">智能体系统的挑战</a></li>
+</ul>
+</li>
+<li><a href="#%E4%BD%BF%E7%94%A8-langchain-%E8%BF%90%E8%A1%8C%E6%99%BA%E8%83%BD%E4%BD%93">使用 LangChain 运行智能体</a></li>
+<li><a href="#%E6%99%BA%E8%83%BD%E4%BD%93%E5%AF%B9%E5%86%B3-%E5%BC%80%E6%BA%90-llm-%E4%BD%9C%E4%B8%BA%E9%80%9A%E7%94%A8%E6%8E%A8%E7%90%86%E6%99%BA%E8%83%BD%E4%BD%93%E7%9A%84%E8%A1%A8%E7%8E%B0%E5%A6%82%E4%BD%95">智能体对决: 开源 LLM 作为通用推理智能体的表现如何？</a>
+<ul>
+<li><a href="#%E8%AF%84%E4%BC%B0">评估</a></li>
+<li><a href="#%E6%A8%A1%E5%9E%8B">模型</a></li>
+<li><a href="#%E7%BB%93%E6%9E%9C">结果</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="什么是智能体">什么是智能体？</h2>
+<p><strong>LLM 智能体的定义非常宽泛: 它们指的是所有将 LLMs 作为核心引擎，并能够根据观察对其环境施加影响的系统。这些系统能够通过多次迭代“感知 ⇒ 思考 ⇒ 行动”的循环来实现既定任务，并常常融入规划或知识管理系统以提升其表现效能。</strong> 你可以在 <a href="https://huggingface.co/papers/2309.07864">Xi et al., 2023</a> 的研究中找到对智能体领域综述的精彩评述。</p>
+<p>今天，我们将重点放在 <strong>ReAct 智能体</strong> 上。<a href="https://huggingface.co/papers/2210.03629">ReAct</a> 采用一种基于“<strong>推理</strong> (Reasoning)”与“<strong>行动</strong> (Acting)”结合的方式来构建智能体。<strong>在提示词中，我们阐述了模型能够利用哪些工具，并引导它“逐步”思考 (亦称为 <a href="https://huggingface.co/papers/2201.11903">思维链</a> 行为)，以规划并实施其后续动作，达成最终的目标。</strong></p>
+<p align="center">
+    <img src="file:////home/luyanfeng/my_code/github/huggingface/susu-huggingface-blog/images/00005_open-source-llms-as-agents/ReAct.png" alt="drawing" width=90%>
+</p>
+<h3 id="react-智能体内部工作原理示例">ReAct 智能体内部工作原理示例</h3>
+<p>上述图解虽显得有些抽象，但其核心原理其实相当直接。</p>
+<p>参见 <a href="https://colab.research.google.com/drive/1j_vsc28FwZEDocDxVxWJ6Fvxd18FK8Gl?usp=sharing">此笔记本</a>: 我们借助 Transformers 库展示了一个最基础的工具调用实例。</p>
+<p><strong>本质上，LLM 通过一个循环被调用，循环中的提示包含如下内容:</strong></p>
+<pre><code>这里是一个问题: “{question}”
+你可以使用这些工具: {tools_descriptions}。
+首先，你需要进行‘思考: {your_thoughts}’，接下来你可以:
+- 以正确的 JSON 格式发起工具调用，
+- 或者，以‘最终答案:’为前缀来输出你的答案。
+</code></pre>
+<p>接下来，你需要解析 LLM 的输出:</p>
+<ul>
+<li><strong>如果输出中包含<code>‘最终答案:’</code> 字符串，循环便结束，并输出该答案;</strong></li>
+<li><strong>若不包含，则表示 LLM 进行了工具调用: 你需解析此输出以获得工具的名称及其参数，随后根据这些参数执行相应工具的调用。此工具调用的结果将被追加至提示信息中，然后你将带有这些新增信息的提示再次传递给 LLM，直至它获得足够的信息来给出问题的最终答案。</strong></li>
+</ul>
+<p>例如，LLM 的输出在回答问题: <code>1:23:45 中有多少秒？</code> 时可能看起来像这样:</p>
+<pre><code>思考: 我需要将时间字符串转换成秒。
+
+动作:
+{
+    &quot;action&quot;: &quot;convert_time&quot;,
+    &quot;action_input&quot;: {
+    	&quot;time&quot;: &quot;1:23:45&quot;
+    }
+}
+</code></pre>
+<p>鉴于此输出未包含 <code>‘最终答案:’</code> 字符串，它代表进行了工具调用。因此我们解析该输出，获取工具调用的参数: 以参数 <code>{&quot;time&quot;: &quot;1:23:45&quot;}</code> 调用 <code>convert_time</code> 工具，执行该工具调用后返回 <code>{'seconds': '5025'}</code> 。</p>
+<p>于是，我们将这整个信息块追加至提示词中。</p>
+<p><strong>更新后的提示词现在变为 (更为详尽的版本):</strong></p>
+<pre><code>这是一个问题: “1:23:45 包含多少秒？”
+你可以使用以下工具:
+    - convert_time: 将小时、分钟、秒格式的时间转换为秒。
+
+首先，进行“思考: {your_thoughts}”，之后你可以:
+- 使用正确的 JSON 格式调用工具，
+- 或以“最终答案:”为前缀输出你的答案。
+
+思考: 我需要把时间字符串转换成秒数。
+
+行动:
+{
+    &quot;action&quot;: &quot;convert_time&quot;,
+    &quot;action_input&quot;: {
+        &quot;time&quot;: &quot;1:23:45&quot;
+    }
+}
+观测结果: {'seconds': '5025'}
+</code></pre>
+<p><strong>➡️ 我们用这个新的提示再次调用 LLM，鉴于它可以访问工具调用结果中的 <code>观测结果</code> ，LLM 现在最有可能输出:</strong></p>
+<pre><code>思考: 我现在有了回答问题所需的信息。
+最终答案: 1:23:45 中有 5025 秒。
+</code></pre>
+<p>任务就这样完成了！</p>
+<h3 id="智能体系统的挑战">智能体系统的挑战</h3>
+<p>一般来说，运行 LLM 引擎的智能体系统的难点包括:</p>
+<ol>
+<li><strong>从提供的工具中选择一个能够帮助实现目标的工具:</strong> 例如，当询问<code>“大于 30,000 的最小质数是什么？”</code> 时，智能体可能会调用<code>“K2 的高度是多少？”</code> 的<code>Search</code> 工具，但这并无帮助。</li>
+<li><strong>以严格的参数格式调用工具:</strong> 例如，在尝试计算一辆汽车 10 分钟内行驶 3 公里的速度时，你必须调用<code>Calculator</code> 工具，通过<code>distance</code> 除以<code>time</code> 来计算: 即便你的 Calculator 工具接受 JSON 格式的调用<code>{“tool”: “Calculator”, “args”: “3km/10min”}</code> ，也存在许多陷阱，例如:</li>
+</ol>
+<ul>
+<li>工具名称拼写错误: <code>“calculator”</code> 或<code>“Compute”</code> 是无效的</li>
+<li>提供的是参数名称而非其值: <code>“args”: “distance/time”</code></li>
+<li>格式非标准化: <code>“args&quot;: &quot;3km in 10minutes”</code></li>
+</ul>
+<ol start="3">
+<li><strong>高效地吸收和利用过去观察到的信息，无论是初始上下文还是使用工具后返回的观察结果。</strong></li>
+</ol>
+<p>那么，完整的智能体设置会是怎样的呢？</p>
+<h2 id="使用-langchain-运行智能体">使用 LangChain 运行智能体</h2>
+<p><strong>我们刚刚在 <a href="https://www.langchain.com/">🦜🔗LangChain</a> 中集成了一个 <code>ChatHuggingFace</code> 封装器，使你能够基于开源模型创建智能体。</strong></p>
+<p>创建 ChatModel 并为其配备工具的代码非常简单，你可以在 <a href="https://python.langchain.com/docs/integrations/chat/huggingface">Langchain 文档</a> 中查看所有相关代码。</p>
+<pre><code class="language-python"><span class="hljs-keyword">from</span> langchain_community.llms <span class="hljs-keyword">import</span> HuggingFaceHub
+<span class="hljs-keyword">from</span> langchain_community.chat_models.huggingface <span class="hljs-keyword">import</span> ChatHuggingFace
+
+llm = HuggingFaceHub(
+    repo_id=<span class="hljs-string">&quot;HuggingFaceH4/zephyr-7b-beta&quot;</span>,
+    task=<span class="hljs-string">&quot;text-generation&quot;</span>,
+)
+
+chat_model = ChatHuggingFace(llm=llm)
+</code></pre>
+<p><strong>你可以通过为其提供 ReAct 风格的提示词和工具，将 <code>chat_model</code> 转化为一个智能体:</strong></p>
+<pre><code class="language-python"><span class="hljs-keyword">from</span> langchain <span class="hljs-keyword">import</span> hub
+<span class="hljs-keyword">from</span> langchain.agents <span class="hljs-keyword">import</span> AgentExecutor, load_tools
+<span class="hljs-keyword">from</span> langchain.agents.format_scratchpad <span class="hljs-keyword">import</span> format_log_to_str
+<span class="hljs-keyword">from</span> langchain.agents.output_parsers <span class="hljs-keyword">import</span> (
+    ReActJsonSingleInputOutputParser,
+)
+<span class="hljs-keyword">from</span> langchain.tools.render <span class="hljs-keyword">import</span> render_text_description
+<span class="hljs-keyword">from</span> langchain_community.utilities <span class="hljs-keyword">import</span> SerpAPIWrapper
+
+<span class="hljs-comment"># 设置工具</span>
+tools = load_tools([<span class="hljs-string">&quot;serpapi&quot;</span>, <span class="hljs-string">&quot;llm-math&quot;</span>], llm=llm)
+
+<span class="hljs-comment"># 设置 ReAct 风格的提示词</span>
+prompt = hub.pull(<span class="hljs-string">&quot;hwchase17/react-json&quot;</span>)
+prompt = prompt.partial(
+    tools=render_text_description(tools),
+    tool_names=<span class="hljs-string">&quot;, &quot;</span>.join([t.name <span class="hljs-keyword">for</span> t <span class="hljs-keyword">in</span> tools]),
+)
+
+<span class="hljs-comment"># 定义智能体</span>
+chat_model_with_stop = chat_model.bind(stop=[<span class="hljs-string">&quot;\nObservation&quot;</span>])
+agent = (
+    {
+        <span class="hljs-string">&quot;input&quot;</span>: <span class="hljs-keyword">lambda</span> x: x[<span class="hljs-string">&quot;input&quot;</span>],
+        <span class="hljs-string">&quot;agent_scratchpad&quot;</span>: <span class="hljs-keyword">lambda</span> x: format_log_to_str(x[<span class="hljs-string">&quot;intermediate_steps&quot;</span>]),
+    }
+    | prompt
+    | chat_model_with_stop
+    | ReActJsonSingleInputOutputParser()
+)
+
+<span class="hljs-comment"># 实例化 AgentExecutor</span>
+agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=<span class="hljs-literal">True</span>)
+
+agent_executor.invoke(
+    {
+        <span class="hljs-string">&quot;input&quot;</span>: <span class="hljs-string">&quot;Who is the current holder of the speed skating world record on 500 meters? What is her current age raised to the 0.43 power?&quot;</span>
+    }
+)
+</code></pre>
+<p>智能体将处理如下输入:</p>
+<pre><code class="language-markdown">思考: 为了回答这个问题，我需要找出当前速滑世界纪录保持者的年龄。我将使用搜索工具来获取这些信息。
+行动:
+{
+&quot;action&quot;: &quot;search&quot;,
+&quot;action<span class="hljs-emphasis">_input&quot;: &quot; 速滑 500 米世界纪录保持者的年龄 &quot;
+}
+观察: ...
+</span></code></pre>
+<h2 id="智能体对决-开源-llm-作为通用推理智能体的表现如何">智能体对决: 开源 LLM 作为通用推理智能体的表现如何？</h2>
+<p>你可以在 <a href="https://github.com/aymeric-roucher/benchmark_agents/">这里</a> 找到这个基准测试的代码。</p>
+<h3 id="评估">评估</h3>
+<p>我们旨在评估开源大型语言模型 (LLMs) 作为通用推理智能体的表现。因此，我们选择了需要运用逻辑和使用基本工具 (如计算器和互联网搜索访问) 的问题。</p>
+<p><a href="https://huggingface.co/datasets/m-ric/agents_small_benchmark">最终数据集</a> 是从其他三个数据集中选取样本的组合:</p>
+<ul>
+<li>为了测试互联网搜索能力，我们选取了 <a href="https://huggingface.co/datasets/hotpot_qa">HotpotQA</a> 中的问题: 虽然这是一个检索型数据集，但它也可用于需要互联网访问的通用问题解答。有些问题原本需要结合来自不同来源的信息: 在我们的设置中，这意味着需要进行多步互联网搜索以整合结果。</li>
+<li>对于计算器的应用，我们加入了来自 <a href="https://huggingface.co/datasets/gsm8k">GSM8K</a> 的问题: 这个数据集测试小学数学能力，并且完全可以通过正确利用 4 个运算符 (加、减、乘、除) 来解决。</li>
+<li>我们还从 <a href="https://huggingface.co/papers/2311.12983">GAIA</a> 中挑选了问题，这是一个对通用 AI 助理来说极具挑战性的基准测试。原始数据集中的问题可能需要许多其他不同的工具，如代码解释器或 PDF 阅读器: 我们精选了那些仅需搜索和计算器的问题。</li>
+</ul>
+<p><strong>评估采用了 GPT-4 作为评判员</strong>，基于 <a href="https://huggingface.co/kaist-ai/prometheus-13b-v1.0">Prometheus 提示格式</a> 的提示进行，结果以 5 点李克特量表 (5-point Likert Scale) 表示: 具体的提示内容可在 <a href="https://github.com/aymeric-roucher/benchmark_agents/blob/master/scripts/prompts.py">此处</a> 查看。</p>
+<h3 id="模型">模型</h3>
+<p>我们评估了一些强大的开源模型:</p>
+<ul>
+<li><a href="https://huggingface.co/meta-llama/Llama-2-70b-chat-hf">Llama2-70b-chat</a></li>
+<li><a href="https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1">Mixtral-8x7B-Instruct-v0.1</a></li>
+<li><a href="https://huggingface.co/teknium/OpenHermes-2.5-Mistral-7B">OpenHermes-2.5-Mistral-7B</a></li>
+<li><a href="https://huggingface.co/HuggingFaceH4/zephyr-7b-beta">Zephyr-7b-beta</a></li>
+<li><a href="https://huggingface.co/upstage/SOLAR-10.7B-Instruct-v1.0">SOLAR-10.7B-Instruct-v1.0</a></li>
+</ul>
+<p>这些模型通过 LangChain 的 <a href="https://github.com/langchain-ai/langchain/tree/021b0484a8d9e8cf0c84bc164fb904202b9e4736/libs/langchain/langchain/agents/react">ReAct 实现</a> 进行了评估</p>
+<p>这意味着我们引导它们按照以下格式输出函数调用:</p>
+<pre><code class="language-json"><span class="hljs-punctuation">{</span>
+  <span class="hljs-attr">&quot;action&quot;</span><span class="hljs-punctuation">:</span> $TOOL_NAME<span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;action_input&quot;</span><span class="hljs-punctuation">:</span> $INPUT
+<span class="hljs-punctuation">}</span>
+</code></pre>
+<p>作为比较，我们还利用 LangChain 的 <a href="https://github.com/langchain-ai/langchain/tree/021b0484a8d9e8cf0c84bc164fb904202b9e4736/libs/langchain/langchain/agents/openai_functions_agent">专为 OpenAI 设计的智能体</a> 对 GPT-3.5 和 GPT-4 在相同的例子上进行了评估。</p>
+<p>由于这涉及到它们自己的函数调用模板，并在此基础上进行了微调，这意味着 OpenAI 模型应当展现出最佳性能。</p>
+<h3 id="结果">结果</h3>
+<p>鉴于开源模型并没有针对特定的输出格式进行特别的函数调用微调，相较于 OpenAI 智能体，它们处于稍微不利的位置。</p>
+<p>尽管存在这样的不利条件，某些模型的表现依然非常优秀！💪</p>
+<p>这是 Mixtral-8x7B 回答“贵阳和塔城哪个城市人口更多？”问题的示例:</p>
+<pre><code class="language-markdown">思考: 为了回答这个问题，我需要找到贵阳和塔城当前的人口数。我将利用搜索工具来查询这些信息。
+操作:
+{
+<span class="hljs-code">    &quot;action&quot;: &quot;search&quot;,
+    &quot;action_input&quot;: &quot; 贵阳当前人口 &quot;
+}
+4.697 百万 (2016 年)
+</span>
+思考: 我已获得贵阳的人口数，为 4.697 百万 (截至 2016 年)。现在，我将再次使用搜索工具来确定塔城的人口数。
+操作:
+{
+<span class="hljs-code">    &quot;action&quot;: &quot;search&quot;,
+    &quot;action_input&quot;: &quot; 塔城当前人口 &quot;
+}
+人口: 新疆: 塔城的数据在 2021 年报告为 1,110,000 人。这比 2020 年的 1,138,638 人有所下降。
+人口: 新疆: 塔城的数据每年更新，从 2005 年 12 月到 2021 年，平均人口为 1,023,000 人，共 17 次观察。
+</span>
+我已确定塔城的人口约为 1.11 百万 (截至 2021 年)。对比两地人口，贵阳的人口超过塔城。
+
+思考: 我现在清楚最终答案了
+最终答案: 贵阳的人口更多，约为 4.697 百万 (截至 2016 年)，而塔城的人口约为 1.11 百万 (截至 2021 年)。
+</code></pre>
+<p>这是各模型在我们的评估数据集上的基准测试结果 (原始平均分按 1-5 的评分量表，已转换为 0-100%的量表以便阅读):</p>
+<p align="center">
+    <img src="file:////home/luyanfeng/my_code/github/huggingface/susu-huggingface-blog/images/00005_open-source-llms-as-agents/benchmark_agents.png" alt="benchmark of agents performance" width="90%">
+</p>
+<p>正如所见，一些开源模型在推动智能体工作流程方面表现欠佳: 虽然对于小型的 Zephyr-7b 而言这是预期之中的，但令人惊讶的是 Llama2-70b 的表现相当差。</p>
+<p>👉 令人惊讶的是，**Mixtral-8x7B 的表现非常出色: 它甚至超越了 GPT-3.5！**🏆</p>
+<p>这是即开即用的性能: <em><strong>与 GPT-3.5 不同的是，据我们所知，Mixtral 没有针对智能体工作流程进行过微调</strong></em>  ，这在一定程度上影响了其性能。例如，在 GAIA 上，因为 Mixtral 尝试使用格式不正确的参数调用工具，导致 10%的问题失败。 <strong>如果对功能调用和任务规划技能进行适当的微调，Mixtral 的得分可能会更高。</strong></p>
+<p>➡️ 我们强烈建议开源开发者开始针对智能体对 Mixtral 进行微调，以超越下一个挑战者: GPT-4！🚀</p>
+<p><strong>结语:</strong></p>
+<ul>
+<li>虽然 GAIA 基准测试仅在一小部分问题和少数工具上进行了尝试，但它似乎是智能体工作流程整体模型性能的一个非常强大的指标，因为它通常涉及多个推理步骤和严格的逻辑。</li>
+<li>智能体工作流程使 LLMs 能够提升性能: 例如，在 GSM8K 上，<a href="https://arxiv.org/pdf/2303.08774.pdf">GPT-4 的技术报告</a> 显示，使用 5 次 CoT 提示的情况下得分为 92%: 通过提供一个计算器，我们能够在零次提示的情况下达到 95%。对于 Mixtral-8x7B，<a href="https://huggingface.co/spaces/HuggingFaceH4/open_llm_leaderboard">LLM 排行榜</a> 报告了使用 5 次提示的情况下为 57.6%，而我们在零次提示的情况下达到了 73%。 <em>(记住，我们仅测试了 GSM8K 的 20 个问题)</em></li>
+</ul>
+
+        <script async src="https://cdn.jsdelivr.net/npm/katex-copytex@latest/dist/katex-copytex.min.js"></script>
+        
+    </body>
+    </html>

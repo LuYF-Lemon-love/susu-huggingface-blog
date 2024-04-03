@@ -10,3 +10,4 @@
 |[Fine-tune Llama 2 with DPO](https://huggingface.co/blog/dpo-trl)|[使用 DPO 微调 Llama 2](https://huggingface.co/blog/zh/dpo-trl)|[使用 DPO 微调 Llama 2](./zh/00002_dpo-trl.md)|
 |[Optimizing your LLM in production](https://huggingface.co/blog/optimize-llm)|[面向生产的 LLM 优化](https://huggingface.co/blog/zh/optimize-llm)|[面向生产的 LLM 优化](./zh/00003_optimize-llm.md)|
 |[StackLLaMA: A hands-on guide to train LLaMA with RLHF](https://huggingface.co/blog/stackllama)|[“StackLLaMA”: 用 RLHF 训练 LLaMA 的手把手教程](https://huggingface.co/blog/zh/stackllama)|[“StackLLaMA”: 用 RLHF 训练 LLaMA 的手把手教程](./zh/00004_stackllama.md)|
+|[Open-source LLMs as LangChain Agents](https://huggingface.co/blog/open-source-llms-as-agents)|[开源大语言模型作为 LangChain 智能体](https://huggingface.co/blog/zh/open-source-llms-as-agents)|[开源大语言模型作为 LangChain 智能体](./zh/00005_open-source-llms-as-agents.md)|

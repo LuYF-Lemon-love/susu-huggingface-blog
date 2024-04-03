@@ -9,3 +9,4 @@
 |[Illustrating Reinforcement Learning from Human Feedback (RLHF)](https://huggingface.co/blog/rlhf)|[ChatGPT 背后的“功臣”——RLHF 技术详解](https://huggingface.co/blog/zh/rlhf)|[ChatGPT 背后的“功臣”——RLHF 技术详解](./zh/00001_rlhf.md)|
 |[Fine-tune Llama 2 with DPO](https://huggingface.co/blog/dpo-trl)|[使用 DPO 微调 Llama 2](https://huggingface.co/blog/zh/dpo-trl)|[使用 DPO 微调 Llama 2](./zh/00002_dpo-trl.md)|
 |[Optimizing your LLM in production](https://huggingface.co/blog/optimize-llm)|[面向生产的 LLM 优化](https://huggingface.co/blog/zh/optimize-llm)|[面向生产的 LLM 优化](./zh/00003_optimize-llm.md)|
+|[StackLLaMA: A hands-on guide to train LLaMA with RLHF](https://huggingface.co/blog/stackllama)|[“StackLLaMA”: 用 RLHF 训练 LLaMA 的手把手教程](https://huggingface.co/blog/zh/stackllama)|[“StackLLaMA”: 用 RLHF 训练 LLaMA 的手把手教程](./zh/00004_stackllama.md)|

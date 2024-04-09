@@ -21,26 +21,15 @@ In recent years, there has been an increasing interest in open-ended language ge
 
 This blog post gives a brief overview of different decoding strategies and more importantly shows how *you* can implement them with very little effort using the popular `transformers` library\!
 
-All of the following functionalities can be used for **auto-regressive**
-language generation ([here](http://jalammar.github.io/illustrated-gpt2/)
-a refresher). In short, *auto-regressive* language generation is based
-on the assumption that the probability distribution of a word sequence
-can be decomposed into the product of conditional next word
-distributions:
+All of the following functionalities can be used for **auto-regressive** language generation ([here](http://jalammar.github.io/illustrated-gpt2/) a refresher). In short, *auto-regressive* language generation is based on the assumption that the probability distribution of a word sequence can be decomposed into the product of conditional next word distributions:
 
 $$ P(w_{1:T} | W_0 ) = \prod_{t=1}^T P(w_{t} | w_{1: t-1}, W_0) \text{ ,with }  w_{1: 0} = \emptyset, $$
 
-and \\(W_0\\) being the initial *context* word sequence. The length \\(T\\)
-of the word sequence is usually determined *on-the-fly* and corresponds
-to the timestep \\(t=T\\) the EOS token is generated from \\(P(w_{t} | w_{1: t-1}, W_{0})\\).
+and $W_0$ being the initial *context* word sequence. **The length $T$ of the word sequence is usually determined *on-the-fly* and corresponds to the timestep $t=T$ the EOS token is generated from $P(w_{t} | w_{1: t-1}, W_{0})$.**
 
-We will give a tour of the currently most prominent decoding methods,
-mainly *Greedy search*, *Beam search*, and *Sampling*.
+We will give a tour of the currently most prominent decoding methods, mainly *Greedy search*, *Beam search*, and *Sampling*.
 
-Let's quickly install transformers and load the model. We will use GPT2
-in PyTorch for demonstration, but the API is 1-to-1 the same for
-TensorFlow and JAX.
-
+Let's quickly install transformers and load the model. We will use GPT2 in PyTorch for demonstration, but the API is 1-to-1 the same for TensorFlow and JAX.
 
 ``` python
 !pip install -q transformers
@@ -58,27 +47,15 @@ tokenizer = AutoTokenizer.from_pretrained("gpt2")
 model = AutoModelForCausalLM.from_pretrained("gpt2", pad_token_id=tokenizer.eos_token_id).to(torch_device)
 ```
 
-
 ## Greedy Search
 
-Greedy search is the simplest decoding method.
-It selects the word with the highest probability as
-its next word: \\(w_t = argmax_{w}P(w | w_{1:t-1})\\) at each timestep
- \\(t\\). The following sketch shows greedy search.
+Greedy search is the simplest decoding method. It selects the word with the highest probability as its next word: $w_t = argmax_{w}P(w | w_{1:t-1})$ at each timestep $t$. The following sketch shows greedy search.
 
+<img src="../images/00007_how-to-generate/greedy_search.png" alt="greedy search" style="margin: auto; display: block;">
 
-<img src="/blog/assets/02_how-to-generate/greedy_search.png" alt="greedy search" style="margin: auto; display: block;">
+Starting from the word $\text{"The"}$, the algorithm greedily chooses the next word of highest probability $\text{"nice"}$ and so on, so that the final generated word sequence is $(\text{"The"}, \text{"nice"}, \text{"woman"})$ having an overall probability of $0.5 \times 0.4 = 0.2$ .
 
-Starting from the word \\(\text{"The"},\\) the algorithm greedily chooses
-the next word of highest probability \\(\text{"nice"}\\) and so on, so
-that the final generated word sequence is \\((\text{"The"}, \text{"nice"}, \text{"woman"})\\)
-having an overall probability of \\(0.5 \times 0.4 = 0.2\\) .
-
-In the following we will generate word sequences using GPT2 on the
-context \\((\text{"I"}, \text{"enjoy"}, \text{"walking"}, \text{"with"}, \text{"my"}, \text{"cute"}, \text{"dog"})\\). Let's
-see how greedy search can be used in `transformers`:
-
-
+In the following we will generate word sequences using GPT2 on the context $(\text{"I"}, \text{"enjoy"}, \text{"walking"}, \text{"with"}, \text{"my"}, \text{"cute"}, \text{"dog"})$. Let's see how greedy search can be used in `transformers`:
 
 ``` python
 # encode context the generation is conditioned on
@@ -99,57 +76,25 @@ I enjoy walking with my cute dog, but I'm not sure if I'll ever be able to walk 
 I'm not sure
 ```
 
+Alright\! We have generated our first short text with GPT2 😊. **The generated words following the context are reasonable, but the model quickly starts repeating itself\! This is a very common problem in language generation in general and seems to be even more so in greedy and beam search** - check out [Vijayakumar et al., 2016](https://arxiv.org/abs/1610.02424) and [Shao et al., 2017](https://arxiv.org/abs/1701.03185).
 
+**The major drawback of greedy search though is that it misses high probability words hidden behind a low probability word as can be seen in our sketch above:**
 
-Alright\! We have generated our first short text with GPT2 😊. The
-generated words following the context are reasonable, but the model
-quickly starts repeating itself\! This is a very common problem in
-language generation in general and seems to be even more so in greedy
-and beam search - check out [Vijayakumar et
-al., 2016](https://arxiv.org/abs/1610.02424) and [Shao et
-al., 2017](https://arxiv.org/abs/1701.03185).
-
-The major drawback of greedy search though is that it misses high
-probability words hidden behind a low probability word as can be seen in
-our sketch above:
-
-The word \\(\text{"has"}\\)
-with its high conditional probability of \\(0.9\\)
-is hidden behind the word \\(\text{"dog"}\\), which has only the
-second-highest conditional probability, so that greedy search misses the
-word sequence \\(\text{"The"}, \text{"dog"}, \text{"has"}\\) .
+The word $\text{"has"}$ with its high conditional probability of $0.9$ is hidden behind the word $\text{"dog"}$, which has only the second-highest conditional probability, so that greedy search misses the word sequence $\text{"The"}, \text{"dog"}, \text{"has"}$ .
 
 Thankfully, we have beam search to alleviate this problem\!
 
-
-
 ## Beam search
 
-Beam search reduces the risk of missing hidden high probability word
-sequences by keeping the most likely `num_beams` of hypotheses at each
-time step and eventually choosing the hypothesis that has the overall
-highest probability. Let's illustrate with `num_beams=2`:
+**Beam search reduces the risk of missing hidden high probability word sequences by keeping the most likely `num_beams` of hypotheses at each time step and eventually choosing the hypothesis that has the overall highest probability.** Let's illustrate with `num_beams=2`:
 
-<img src="/blog/assets/02_how-to-generate/beam_search.png" alt="beam search" style="margin: auto; display: block;">
+<img src="../images/00007_how-to-generate/beam_search.png" alt="beam search" style="margin: auto; display: block;">
 
-At time step 1, besides the most likely hypothesis \\((\text{"The"}, \text{"nice"})\\),
-beam search also keeps track of the second
-most likely one \\((\text{"The"}, \text{"dog"})\\).
-At time step 2, beam search finds that the word sequence \\((\text{"The"}, \text{"dog"}, \text{"has"})\\),
-has with \\(0.36\\)
-a higher probability than \\((\text{"The"}, \text{"nice"}, \text{"woman"})\\),
-which has \\(0.2\\) . Great, it has found the most likely word sequence in
-our toy example\!
+At time step 1, besides the most likely hypothesis $(\text{"The"}, \text{"nice"})$, beam search also keeps track of the second most likely one $(\text{"The"}, \text{"dog"})$. At time step 2, beam search finds that the word sequence $(\text{"The"}, \text{"dog"}, \text{"has"})$, has with $0.36$ a higher probability than $(\text{"The"}, \text{"nice"}, \text{"woman"})$, which has $0.2$ . Great, it has found the most likely word sequence in our toy example\!
 
-Beam search will always find an output sequence with higher probability
-than greedy search, but is not guaranteed to find the most likely
-output.
+**Beam search will always find an output sequence with higher probability than greedy search, but is not guaranteed to find the most likely output.**
 
-Let's see how beam search can be used in `transformers`. We set
-`num_beams > 1` and `early_stopping=True` so that generation is finished
-when all beam hypotheses reached the EOS token.
-
-
+Let's see how beam search can be used in `transformers`. **We set `num_beams > 1` and `early_stopping=True` so that generation is finished when all beam hypotheses reached the EOS token.**
 
 ``` python
 # activate beam search and early_stopping
@@ -172,20 +117,9 @@ I enjoy walking with my cute dog, but I'm not sure if I'll ever be able to walk 
 I'm not sure if I'll ever be able to walk with him again. I'm not sure
 ```
 
+**While the result is arguably more fluent, the output still includes repetitions of the same word sequences.** One of the available remedies is to introduce *n-grams* (*a.k.a* word sequences of n words) penalties as introduced by [Paulus et al. (2017)](https://arxiv.org/abs/1705.04304) and [Klein et al. (2017)](https://arxiv.org/abs/1701.02810). **The most common *n-grams* penalty makes sure that no *n-gram* appears twice by manually setting the probability of next words that could create an already seen *n-gram* to 0.**
 
-While the result is arguably more fluent, the output still includes
-repetitions of the same word sequences.
-One of the available remedies is to introduce *n-grams* (*a.k.a* word sequences of
-n words) penalties as introduced by [Paulus et al.
-(2017)](https://arxiv.org/abs/1705.04304) and [Klein et al.
-(2017)](https://arxiv.org/abs/1701.02810). The most common *n-grams*
-penalty makes sure that no *n-gram* appears twice by manually setting
-the probability of next words that could create an already seen *n-gram*
-to 0.
-
-Let's try it out by setting `no_repeat_ngram_size=2` so that no *2-gram*
-appears twice:
-
+Let's try it out by setting `no_repeat_ngram_size=2` so that no *2-gram* appears twice:
 
 ``` python
 # set no_repeat_ngram_size to 2
@@ -209,23 +143,11 @@ I enjoy walking with my cute dog, but I'm not sure if I'll ever be able to walk 
 I've been thinking about this for a while now, and I think it's time for me to
 ```
 
+Nice, that looks much better\! We can see that the repetition does not appear anymore. **Nevertheless, *n-gram* penalties have to be used with care.** An article generated about the city *New York* should not use a *2-gram* penalty or otherwise, the name of the city would only appear once in the whole text\!
 
+**Another important feature about beam search is that we can compare the top beams after generation and choose the generated beam that fits our purpose best.**
 
-Nice, that looks much better\! We can see that the repetition does not
-appear anymore. Nevertheless, *n-gram* penalties have to be used with
-care. An article generated about the city *New York* should not use a
-*2-gram* penalty or otherwise, the name of the city would only appear
-once in the whole text\!
-
-Another important feature about beam search is that we can compare the
-top beams after generation and choose the generated beam that fits our
-purpose best.
-
-In `transformers`, we simply set the parameter `num_return_sequences` to
-the number of highest scoring beams that should be returned. Make sure
-though that `num_return_sequences <= num_beams`\!
-
-
+**In `transformers`, we simply set the parameter `num_return_sequences` to the number of highest scoring beams that should be returned. Make sure though that `num_return_sequences <= num_beams`\!**
 
 ``` python
 # set return_num_sequences > 1
@@ -264,66 +186,33 @@ I've been thinking about this for a while now, and I think it's time to take a
 I've been thinking about this for a while now, and I think it's a good idea.
 ```
 
+**As can be seen, the five beam hypotheses are only marginally different to each other** - which should not be too surprising when using only 5 beams.
 
-As can be seen, the five beam hypotheses are only marginally different
-to each other - which should not be too surprising when using only 5
-beams.
+**In open-ended generation, a couple of reasons have been brought forward why beam search might not be the best possible option:**
 
-In open-ended generation, a couple of reasons have been brought
-forward why beam search might not be the best possible option:
+  - **Beam search can work very well in tasks where the length of the desired generation is more or less predictable as in machine translation or summarization** - see [Murray et al. (2018)](https://arxiv.org/abs/1808.10006) and [Yang et al. (2018)](https://arxiv.org/abs/1808.09582). **But this is not the case for open-ended generation where the desired output length can vary greatly, e.g. dialog and story generation.**
 
-  - Beam search can work very well in tasks where the length of the
-    desired generation is more or less predictable as in machine
-    translation or summarization - see [Murray et al.
-    (2018)](https://arxiv.org/abs/1808.10006) and [Yang et al.
-    (2018)](https://arxiv.org/abs/1808.09582). But this is not the case
-    for open-ended generation where the desired output length can vary
-    greatly, e.g. dialog and story generation.
+  - **We have seen that beam search heavily suffers from repetitive generation.** This is especially hard to control with *n-gram*- or other penalties in story generation since finding a good trade-off between inhibiting repetition and repeating cycles of identical *n-grams* requires a lot of finetuning.
 
-  - We have seen that beam search heavily suffers from repetitive
-    generation. This is especially hard to control with *n-gram*- or
-    other penalties in story generation since finding a good trade-off
-    between inhibiting repetition and repeating cycles of identical
-    *n-grams* requires a lot of finetuning.
+  - **As argued in [Ari Holtzman et al. (2019)](https://arxiv.org/abs/1904.09751), high quality human language does not follow a distribution of high probability next words. In other words, as humans, we want generated text to surprise us and not to be boring/predictable.** The authors show this nicely by plotting the probability, a model would give to human text vs. what beam search does.
 
-  - As argued in [Ari Holtzman et al.
-    (2019)](https://arxiv.org/abs/1904.09751), high quality human
-    language does not follow a distribution of high probability next
-    words. In other words, as humans, we want generated text to surprise
-    us and not to be boring/predictable. The authors show this nicely by
-    plotting the probability, a model would give to human text vs. what
-    beam search does.
+![alt text](../images/00007_how-to-generate/Screen_Shot_2019_05_08_at_3_06_36_PM-1557342561886.png)
 
-![alt
-text](https://blog.fastforwardlabs.com/images/2019/05/Screen_Shot_2019_05_08_at_3_06_36_PM-1557342561886.png)
-
-So let's stop being boring and introduce some randomness 🤪.
-
-
+**So let's stop being boring and introduce some randomness 🤪.**
 
 ## Sampling
 
-In its most basic form, sampling means randomly picking the next word \\(w_t\\) according to its conditional probability distribution:
+**In its most basic form, sampling means randomly picking the next word $w_t$ according to its conditional probability distribution:**
 
 $$ w_t \sim P(w|w_{1:t-1}) $$
 
-Taking the example from above, the following graphic visualizes language
-generation when sampling.
+Taking the example from above, the following graphic visualizes language generation when sampling.
 
-<img src="/blog/assets/02_how-to-generate/sampling_search.png" alt="sampling search" style="margin: auto; display: block;">
+<img src="../images/00007_how-to-generate/sampling_search.png" alt="sampling search" style="margin: auto; display: block;">
 
-It becomes obvious that language generation using sampling is not
-*deterministic* anymore. The word \\((\text{"car"})\\) is sampled from the
-conditioned probability distribution \\(P(w | \text{"The"})\\), followed
-by sampling \\((\text{"drives"})\\) from
-\\(P(w | \text{"The"}, \text{"car"})\\) .
+**It becomes obvious that language generation using sampling is not *deterministic* anymore. The word $(\text{"car"})$ is sampled from the conditioned probability distribution $P(w | \text{"The"})$, followed by sampling $(\text{"drives"})$ from $P(w | \text{"The"}, \text{"car"})$ .**
 
-In `transformers`, we set `do_sample=True` and deactivate *Top-K*
-sampling (more on this later) via `top_k=0`. In the following, we will
-fix the random seed for illustration purposes. Feel free to change the
-`set_seed` argument to obtain different results, or to remove it for non-determinism.
-
-
+**In `transformers`, we set `do_sample=True` and deactivate *Top-K* sampling (more on this later) via `top_k=0`.** In the following, we will fix the random seed for illustration purposes. Feel free to change the `set_seed` argument to obtain different results, or to remove it for non-determinism.
 
 ``` python
 # set seed to reproduce results. Feel free to change the seed though to get different results
@@ -348,33 +237,17 @@ Output:
 I enjoy walking with my cute dog for the rest of the day, but this had me staying in an unusual room and not going on nights out with friends (which will always be wondered for a mere minute or so at this point).
 ```
 
+Interesting\! The text seems alright - but when taking a closer look, it is not very coherent and doesn't sound like it was written by a human. **That is the big problem when sampling word sequences: The models often generate incoherent gibberish**, *cf.* [Ari Holtzman et al. (2019)](https://arxiv.org/abs/1904.09751).
 
+**A trick is to make the distribution $P(w|w_{1:t-1})$ sharper (increasing the likelihood of high probability words and decreasing the likelihood of low probability words) by lowering the so-called `temperature` of the [softmax](https://en.wikipedia.org/wiki/Softmax_function#Smooth_arg_max).**
 
-Interesting\! The text seems alright - but when taking a closer look, it
-is not very coherent and doesn't sound like it was written by a
-human. That is the big problem when sampling word sequences: The models
-often generate incoherent gibberish, *cf.* [Ari Holtzman et al.
-(2019)](https://arxiv.org/abs/1904.09751).
+An illustration of applying temperature to our example from above could look as follows.
 
-A trick is to make the distribution \\(P(w|w_{1:t-1})\\) sharper
-(increasing the likelihood of high probability words and decreasing the
-likelihood of low probability words) by lowering the so-called
-`temperature` of the
-[softmax](https://en.wikipedia.org/wiki/Softmax_function#Smooth_arg_max).
+<img src="../images/00007_how-to-generate/sampling_search_with_temp.png" alt="sampling temp search" style="margin: auto; display: block;">
 
-An illustration of applying temperature to our example from above could
-look as follows.
+The conditional next word distribution of step $t=1$ becomes much sharper leaving almost no chance for word $(\text{"car"})$ to be selected.
 
-<img src="/blog/assets/02_how-to-generate/sampling_search_with_temp.png" alt="sampling temp search" style="margin: auto; display: block;">
-
-The conditional next word distribution of step \\(t=1\\) becomes much
-sharper leaving almost no chance for word \\((\text{"car"})\\) to be
-selected.
-
-Let's see how we can cool down the distribution in the library by
-setting `temperature=0.6`:
-
-
+**Let's see how we can cool down the distribution in the library by setting `temperature=0.6`:**
 
 ``` python
 # set seed to reproduce results. Feel free to change the seed though to get different results
@@ -401,40 +274,19 @@ I enjoy walking with my cute dog, but I don't like to chew on it. I like to eat 
 So how did you decide
 ```
 
-
-
-OK. There are less weird n-grams and the output is a bit more coherent
-now\! While applying temperature can make a distribution less random, in
-its limit, when setting `temperature` \\(\to 0\\), temperature scaled
-sampling becomes equal to greedy decoding and will suffer from the same
-problems as before.
-
-
+OK. There are less weird n-grams and the output is a bit more coherent now\! **While applying temperature can make a distribution less random, in its limit, when setting `temperature` $\to 0$, temperature scaled sampling becomes equal to greedy decoding and will suffer from the same problems as before.**
 
 ### Top-K Sampling
 
-[Fan et. al (2018)](https://arxiv.org/pdf/1805.04833.pdf) introduced a
-simple, but very powerful sampling scheme, called ***Top-K*** sampling.
-In *Top-K* sampling, the *K* most likely next words are filtered and the
-probability mass is redistributed among only those *K* next words. GPT2
-adopted this sampling scheme, which was one of the reasons for its
-success in story generation.
+[Fan et. al (2018)](https://arxiv.org/pdf/1805.04833.pdf) introduced a simple, but very powerful sampling scheme, called ***Top-K*** sampling. **In *Top-K* sampling, the *K* most likely next words are filtered and the probability mass is redistributed among only those *K* next words.** GPT2 adopted this sampling scheme, which was one of the reasons for its success in story generation.
 
-We extend the range of words used for both sampling steps in the example
-above from 3 words to 10 words to better illustrate *Top-K* sampling.
+We extend the range of words used for both sampling steps in the example above from 3 words to 10 words to better illustrate *Top-K* sampling.
 
-<img src="/blog/assets/02_how-to-generate/top_k_sampling.png" alt="Top K sampling" style="margin: auto; display: block;">
+<img src="../images/00007_how-to-generate/top_k_sampling.png" alt="Top K sampling" style="margin: auto; display: block;">
 
-Having set \\(K = 6\\), in both sampling steps we limit our sampling pool
-to 6 words. While the 6 most likely words, defined as
- \\(V_{\text{top-K}}\\) encompass only *ca.* two-thirds of the whole
-probability mass in the first step, it includes almost all of the
-probability mass in the second step. Nevertheless, we see that it
-successfully eliminates the rather weird candidates \\((\text{``not"}, \text{``the"}, \text{``small"}, \text{``told"})\\) in the second sampling step.
+Having set $K = 6$, in both sampling steps we limit our sampling pool to 6 words. **While the 6 most likely words, defined as $V_{\text{top-K}}$ encompass only *ca.* two-thirds of the whole probability mass in the first step, it includes almost all of the probability mass in the second step. Nevertheless, we see that it successfully eliminates the rather weird candidates $(\text{``not"}, \text{``the"}, \text{``small"}, \text{``told"})$ in the second sampling step.**
 
 Let's see how *Top-K* can be used in the library by setting `top_k=50`:
-
-
 
 ``` python
 # set seed to reproduce results. Feel free to change the seed though to get different results
@@ -458,8 +310,6 @@ Output:
 I enjoy walking with my cute dog for the rest of the day, but this time it was hard for me to figure out what to do with it. (One reason I asked this for a few months back is that I had a
 ```
 
-
-
 Not bad at all\! The text is arguably the most *human-sounding* text so
 far. One concern though with *Top-K* sampling is that it does not
 dynamically adapt the number of words that are filtered from the next
@@ -479,8 +329,6 @@ model's creativity for flat distribution. This intuition led [Ari
 Holtzman et al. (2019)](https://arxiv.org/abs/1904.09751) to create
 ***Top-p***- or ***nucleus***-sampling.
 
-
-
 ### Top-p (nucleus) sampling
 
 Instead of sampling only from the most likely *K* words, in *Top-p*
@@ -491,7 +339,7 @@ set of words (*a.k.a* the number of words in the set) can dynamically
 increase and decrease according to the next word's probability
 distribution. Ok, that was very wordy, let's visualize.
 
-<img src="/blog/assets/02_how-to-generate/top_p_sampling.png" alt="Top p sampling" style="margin: auto; display: block;">
+<img src="../images/00007_how-to-generate/top_p_sampling.png" alt="Top p sampling" style="margin: auto; display: block;">
 
 Having set \\(p=0.92\\), *Top-p* sampling picks the *minimum* number of
 words to exceed together \\(p=92\%\\) of the probability mass, defined as

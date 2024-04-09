@@ -1,4 +1,4 @@
 #!/bin/bash
 git add .
-git commit -m "增加 🤗 PEFT：在低资源硬件上对十亿规模模型进行参数高效微调"
+git commit -m "增加 How to generate text: using different decoding methods for language generation with Transformers"
 git push

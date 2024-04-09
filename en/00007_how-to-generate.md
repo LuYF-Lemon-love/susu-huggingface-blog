@@ -310,51 +310,19 @@ Output:
 I enjoy walking with my cute dog for the rest of the day, but this time it was hard for me to figure out what to do with it. (One reason I asked this for a few months back is that I had a
 ```
 
-Not bad at all\! The text is arguably the most *human-sounding* text so
-far. One concern though with *Top-K* sampling is that it does not
-dynamically adapt the number of words that are filtered from the next
-word probability distribution \\(P(w|w_{1:t-1})\\). This can be
-problematic as some words might be sampled from a very sharp
-distribution (distribution on the right in the graph above), whereas
-others from a much more flat distribution (distribution on the left in
-the graph above).
+Not bad at all\! The text is arguably the most *human-sounding* text so far. **One concern though with *Top-K* sampling is that it does not dynamically adapt the number of words that are filtered from the next word probability distribution $P(w|w_{1:t-1})$.** This can be problematic as some words might be sampled from a very sharp distribution (distribution on the right in the graph above), whereas others from a much more flat distribution (distribution on the left in the graph above).
 
-In step \\(t=1\\), *Top-K* eliminates the possibility to sample
- \\((\text{"people"}, \text{"big"}, \text{"house"}, \text{"cat"})\\), which seem like reasonable
-candidates. On the other hand, in step \\(t=2\\) the method includes the
-arguably ill-fitted words \\((\text{"down"}, \text{"a"})\\) in the sample pool of
-words. Thus, limiting the sample pool to a fixed size *K* could endanger
-the model to produce gibberish for sharp distributions and limit the
-model's creativity for flat distribution. This intuition led [Ari
-Holtzman et al. (2019)](https://arxiv.org/abs/1904.09751) to create
-***Top-p***- or ***nucleus***-sampling.
+In step $t=1$, *Top-K* eliminates the possibility to sample $(\text{"people"}, \text{"big"}, \text{"house"}, \text{"cat"})$, which seem like reasonable candidates. On the other hand, in step $t=2$ the method includes the arguably ill-fitted words $(\text{"down"}, \text{"a"})$ in the sample pool of words. **Thus, limiting the sample pool to a fixed size *K* could endanger the model to produce gibberish for sharp distributions and limit the model's creativity for flat distribution.** This intuition led [Ari Holtzman et al. (2019)](https://arxiv.org/abs/1904.09751) to create ***Top-p***- or ***nucleus***-sampling.
 
 ### Top-p (nucleus) sampling
 
-Instead of sampling only from the most likely *K* words, in *Top-p*
-sampling chooses from the smallest possible set of words whose
-cumulative probability exceeds the probability *p*. The probability mass
-is then redistributed among this set of words. This way, the size of the
-set of words (*a.k.a* the number of words in the set) can dynamically
-increase and decrease according to the next word's probability
-distribution. Ok, that was very wordy, let's visualize.
+**Instead of sampling only from the most likely *K* words, in *Top-p* sampling chooses from the smallest possible set of words whose cumulative probability exceeds the probability *p*. The probability mass is then redistributed among this set of words.** This way, the size of the set of words (*a.k.a* the number of words in the set) can dynamically increase and decrease according to the next word's probability distribution. Ok, that was very wordy, let's visualize.
 
 <img src="../images/00007_how-to-generate/top_p_sampling.png" alt="Top p sampling" style="margin: auto; display: block;">
 
-Having set \\(p=0.92\\), *Top-p* sampling picks the *minimum* number of
-words to exceed together \\(p=92\%\\) of the probability mass, defined as
- \\(V_{\text{top-p}}\\). In the first example, this included the 9 most
-likely words, whereas it only has to pick the top 3 words in the second
-example to exceed 92%. Quite simple actually\! It can be seen that it
-keeps a wide range of words where the next word is arguably less
-predictable, *e.g.* \\(P(w | \text{"The''})\\), and only a few words when
-the next word seems more predictable, *e.g.*
- \\(P(w | \text{"The"}, \text{"car"})\\).
+Having set $p=0.92$, *Top-p* sampling picks the *minimum* number of words to exceed together $p=92\%$ of the probability mass, defined as $V_{\text{top-p}}$. In the first example, this included the 9 most likely words, whereas it only has to pick the top 3 words in the second example to exceed 92%. **Quite simple actually\! It can be seen that it keeps a wide range of words where the next word is arguably less predictable, *e.g.* $P(w | \text{"The''})$, and only a few words when the next word seems more predictable, *e.g.* $P(w | \text{"The"}, \text{"car"})$.**
 
-Alright, time to check it out in `transformers`\! We activate *Top-p*
-sampling by setting `0 < top_p < 1`:
-
-
+Alright, time to check it out in `transformers`\! We activate *Top-p* sampling by setting `0 < top_p < 1`:
 
 ``` python
 # set seed to reproduce results. Feel free to change the seed though to get different results
@@ -379,20 +347,11 @@ Output:
 I enjoy walking with my cute dog for the rest of the day, but this had me staying in an unusual room and not going on nights out with friends (which will always be my yearning for such a spacious screen on my desk
 ```
 
+Great, that sounds like it could have been written by a human. Well, maybe not quite yet.
 
+**While in theory, *Top-p* seems more elegant than *Top-K*, both methods work well in practice. *Top-p* can also be used in combination with *Top-K*, which can avoid very low ranked words while allowing for some dynamic selection.**
 
-Great, that sounds like it could have been written by a human. Well,
-maybe not quite yet.
-
-While in theory, *Top-p* seems more elegant than *Top-K*, both methods
-work well in practice. *Top-p* can also be used in combination with
-*Top-K*, which can avoid very low ranked words while allowing for some
-dynamic selection.
-
-Finally, to get multiple independently sampled outputs, we can *again*
-set the parameter `num_return_sequences > 1`:
-
-
+Finally, to get multiple independently sampled outputs, we can *again* set the parameter `num_return_sequences > 1`:
 
 ``` python
 # set seed to reproduce results. Feel free to change the seed though to get different results
@@ -422,41 +381,17 @@ Output:
 2: I enjoy walking with my cute dog (Chama-I-I-I-I-I), and I really enjoy running. I play in a little game I play with my brother in which I take pictures of our houses.
 ```
 
-
-Cool, now you should have all the tools to let your model write your
-stories with `transformers`!
-
-
+Cool, now you should have all the tools to let your model write your stories with `transformers`!
 
 ## Conclusion
 
-As *ad-hoc* decoding methods, *top-p* and *top-K* sampling seem to
-produce more fluent text than traditional *greedy* - and *beam* search
-on open-ended language generation. There is
-evidence that the apparent flaws of *greedy* and *beam* search -
-mainly generating repetitive word sequences - are caused by the model
-(especially the way the model is trained), rather than the decoding
-method, *cf.* [Welleck et al.
-(2019)](https://arxiv.org/pdf/1908.04319.pdf). Also, as demonstrated in
-[Welleck et al. (2020)](https://arxiv.org/abs/2002.02492), it looks as
-*top-K* and *top-p* sampling also suffer from generating repetitive word
-sequences.
+As *ad-hoc* decoding methods, *top-p* and *top-K* sampling seem to produce more fluent text than traditional *greedy* - and *beam* search on open-ended language generation. **There is evidence that the apparent flaws of *greedy* and *beam* search - mainly generating repetitive word sequences - are caused by the model (especially the way the model is trained), rather than the decoding method, *cf.* [Welleck et al. (2019)](https://arxiv.org/pdf/1908.04319.pdf).** Also, as demonstrated in [Welleck et al. (2020)](https://arxiv.org/abs/2002.02492), it looks as *top-K* and *top-p* sampling also suffer from generating repetitive word sequences.
 
-In [Welleck et al. (2019)](https://arxiv.org/pdf/1908.04319.pdf), the
-authors show that according to human evaluations, *beam* search can
-generate more fluent text than *Top-p* sampling, when adapting the
-model's training objective.
+**In [Welleck et al. (2019)](https://arxiv.org/pdf/1908.04319.pdf), the authors show that according to human evaluations, *beam* search can generate more fluent text than *Top-p* sampling, when adapting the model's training objective.**
 
-Open-ended language generation is a rapidly evolving field of research
-and as it is often the case there is no one-size-fits-all method here,
-so one has to see what works best in one's specific use case.
+**Open-ended language generation is a rapidly evolving field of research and as it is often the case there is no one-size-fits-all method here, so one has to see what works best in one's specific use case.**
 
-Fortunately, *you* can try out all the different decoding methods in
-`transfomers` 🤗 -- you can have an overview of the available methods
-[here](https://huggingface.co/docs/transformers/generation_strategies#decoding-strategies).
-
-Thanks to everybody, who has contributed to the blog post: Alexander Rush, Julien Chaumand, Thomas Wolf, Victor Sanh, Sam Shleifer, Clément Delangue, Yacine Jernite, Oliver Åstrand and John de Wasseige.
-
+Fortunately, *you* can try out all the different decoding methods in `transfomers` 🤗 -- you can have an overview of the available methods [here](https://huggingface.co/docs/transformers/generation_strategies#decoding-strategies).
 
 ## Appendix
 

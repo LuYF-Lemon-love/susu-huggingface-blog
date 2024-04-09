@@ -1,4 +1,4 @@
 #!/bin/bash
 git add .
-git commit -m "增加 How to generate text: using different decoding methods for language generation with Transformers"
+git commit -m "增加 大规模 Transformer 模型 8 比特矩阵乘简介 - 基于 Hugging Face Transformers、Accelerate 以及 bitsandbytes"
 git push

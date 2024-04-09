@@ -45,12 +45,11 @@ For example, if you do `10k * 10k` you end up with `100M` which is not possible 
 
 **This means that in BF16 we can retain the same dynamic range as FP32. But we lose 3 bits of precision with respect to FP16. Now there is absolutely no problem with huge numbers, but the precision is worse than FP16 here.**
 
-In the Ampere architecture, NVIDIA also introduced [TensorFloat-32](https://blogs.nvidia.com/blog/2020/05/14/tensorfloat-32-precision-format/) (TF32) precision format, combining the dynamic range of BF16 and precision of FP16 to only use 19 bits. It's currently only used internally during certain operations.
+**In the Ampere architecture, NVIDIA also introduced [TensorFloat-32](https://blogs.nvidia.com/blog/2020/05/14/tensorfloat-32-precision-format/) (TF32) precision format, combining the dynamic range of BF16 and precision of FP16 to only use 19 bits. It's currently only used internally during certain operations.**
 
-In the machine learning jargon FP32 is called full precision (4 bytes), while BF16 and FP16 are referred to as half-precision (2 bytes).
-On top of that, the int8 (INT8) data type consists of an 8-bit representation that can store 2^8 different values (between [0, 255] or [-128, 127] for signed integers).
+In the machine learning jargon FP32 is called full precision (4 bytes), while BF16 and FP16 are referred to as half-precision (2 bytes). On top of that, the int8 (INT8) data type consists of an 8-bit representation that can store 2^8 different values (between [0, 255] or [-128, 127] for signed integers).
 
-While, ideally the training and inference should be done in FP32, it is two times slower than FP16/BF16 and therefore a mixed precision approach is used where the weights are held in FP32 as a precise "main weights" reference, while computation in a forward and backward pass are done for FP16/BF16 to enhance training speed. The FP16/BF16 gradients are then used to update the FP32 main weights. 
+**While, ideally the training and inference should be done in FP32, it is two times slower than FP16/BF16 and therefore a mixed precision approach is used where the weights are held in FP32 as a precise "main weights" reference, while computation in a forward and backward pass are done for FP16/BF16 to enhance training speed. The FP16/BF16 gradients are then used to update the FP32 main weights.** 
 
 During training, the main weights are always stored in FP32, but in practice, the half-precision weights often provide similar quality during inference as their FP32 counterpart -- a precise reference of the model is only needed when it receives multiple gradient updates. This means we can use the half-precision weights and use half the GPUs to accomplish the same outcome.
 
@@ -60,48 +59,46 @@ To calculate the model size in bytes, one multiplies the number of parameters by
 
 But what if we can store those weights with less memory using a different data type? A methodology called quantization has been used widely in Deep Learning.
 
-
 ## Introduction to model quantization
 
 Experimentially, we have discovered that instead of using the 4-byte FP32 precision, we can get an almost identical inference outcome with 2-byte BF16/FP16 half-precision, which halves the model size. It'd be amazing to cut it further, but the inference quality outcome starts to drop dramatically at lower precision.
 
-To remediate that, we introduce 8-bit quantization. This method uses a quarter precision, thus needing only 1/4th of the model size! But it's not done by just dropping another half of the bits.
+**To remediate that, we introduce 8-bit quantization. This method uses a quarter precision, thus needing only 1/4th of the model size! But it's not done by just dropping another half of the bits.**
 
-Quantization is done by essentially “rounding” from one data type to another. For example, if one data type has the range 0..9 and another 0..4, then the value “4” in the first data type would be rounded to “2” in the second data type. However, if we have the value “3” in the first data type, it lies between 1 and 2 of the second data type, then we would usually round to “2”. This shows that both values “4” and “3” of the first data type have the same value “2” in the second data type. This highlights that quantization is a noisy process that can lead to information loss, a sort of lossy compression.
+**Quantization is done by essentially “rounding” from one data type to another.** For example, if one data type has the range 0..9 and another 0..4, then the value “4” in the first data type would be rounded to “2” in the second data type. However, if we have the value “3” in the first data type, it lies between 1 and 2 of the second data type, then we would usually round to “2”. This shows that both values “4” and “3” of the first data type have the same value “2” in the second data type. **This highlights that quantization is a noisy process that can lead to information loss, a sort of lossy compression.**
 
-The two most common 8-bit quantization techniques are zero-point quantization and absolute maximum (absmax) quantization. Zero-point quantization and absmax quantization map the floating point values into more compact int8 (1 byte) values. First, these methods normalize the input by scaling it by a quantization constant.
+The two most common 8-bit quantization techniques are zero-point quantization and absolute maximum (absmax) quantization. **Zero-point quantization and absmax quantization map the floating point values into more compact int8 (1 byte) values.** First, these methods normalize the input by scaling it by a quantization constant.
 
-For example, in zero-point quantization, if my range is -1.0…1.0 and I want to quantize into the range -127…127, I want to scale by the factor of 127 and then round it into the 8-bit precision. To retrieve the original value, you would need to divide the int8 value by that same quantization factor of 127. For example, the value 0.3 would be scaled to `0.3*127 = 38.1`. Through rounding, we get the value of 38. If we reverse this, we get `38/127=0.2992` – we have a quantization error of 0.008 in this example. These seemingly tiny errors tend to accumulate and grow as they get propagated through the model’s layers and result in performance degradation.
+**For example, in zero-point quantization, if my range is -1.0…1.0 and I want to quantize into the range -127…127, I want to scale by the factor of 127 and then round it into the 8-bit precision. To retrieve the original value, you would need to divide the int8 value by that same quantization factor of 127.** For example, the value 0.3 would be scaled to `0.3*127 = 38.1`. Through rounding, we get the value of 38. If we reverse this, we get `38/127=0.2992` – we have a quantization error of 0.008 in this example. These seemingly tiny errors tend to accumulate and grow as they get propagated through the model’s layers and result in performance degradation.
 
 ![quantization](../images/00008_hf_bitsandbytes_integration/quantization.png)
 
 (Image taken from: [this blogpost](https://intellabs.github.io/distiller/algo_quantization.html) )
 
-Now let's look at the details of absmax quantization. To calculate the mapping between the fp16 number and its corresponding int8 number in absmax quantization, you have to first divide by the absolute maximum value of the tensor and then multiply by the total range of the data type.
+**Now let's look at the details of absmax quantization.** To calculate the mapping between the fp16 number and its corresponding int8 number in absmax quantization, **you have to first divide by the absolute maximum value of the tensor and then multiply by the total range of the data type.**
 
 For example, let's assume you want to apply absmax quantization in a vector that contains `[1.2, -0.5, -4.3, 1.2, -3.1, 0.8, 2.4, 5.4]`. You extract the absolute maximum of it, which is `5.4` in this case. Int8 has a range of `[-127, 127]`, so we divide 127 by `5.4` and obtain `23.5` for the scaling factor. Therefore multiplying the original vector by it gives the quantized vector `[28, -12, -101, 28, -73, 19, 56, 127]`.
 
 ![out-quant.gif](../images/00008_hf_bitsandbytes_integration/out-quant.gif)
 
-To retrieve the latest, one can just divide in full precision the int8 number with the quantization factor, but since the result above is "rounded" some precision will be lost.
+**To retrieve the latest, one can just divide in full precision the int8 number with the quantization factor, but since the result above is "rounded" some precision will be lost.**
 
 ![quant-freeze](../images/00008_hf_bitsandbytes_integration/quant-freeze.png)
 
-For an unsigned int8, we would subtract the minimum and scale by the absolute maximum. This is close to what zero-point quantization does. It's is similar to a min-max scaling but the latter maintains the value scales in such a way that the value “0” is always represented by an integer without any quantization error.
+**For an unsigned int8, we would subtract the minimum and scale by the absolute maximum. This is close to what zero-point quantization does. It's is similar to a min-max scaling but the latter maintains the value scales in such a way that the value “0” is always represented by an integer without any quantization error.**
 
-These tricks can be combined in several ways, for example, row-wise or vector-wise quantization, when it comes to matrix multiplication for more accurate results. Looking at the matrix multiplication, A\*B=C, instead of regular quantization that normalize by a absolute maximum value per tensor, vector-wise quantization finds the absolute maximum of each row of A and each column of B. Then we normalize A and B by dividing these vectors. We then multiply A\*B to get C. Finally, to get back the FP16 values, we denormalize by computing the outer product of the absolute maximum vector of A and B. More details on this technique can be found in the [LLM.int8() paper](https://arxiv.org/abs/2208.07339) or in the [blog post about quantization and emergent features](https://timdettmers.com/2022/08/17/llm-int8-and-emergent-features/) on Tim's blog.
+**These tricks can be combined in several ways, for example, row-wise or vector-wise quantization, when it comes to matrix multiplication for more accurate results.** Looking at the matrix multiplication, A\*B=C, instead of regular quantization that normalize by a absolute maximum value per tensor, vector-wise quantization finds the absolute maximum of each row of A and each column of B. Then we normalize A and B by dividing these vectors. We then multiply A\*B to get C. Finally, to get back the FP16 values, we denormalize by computing the outer product of the absolute maximum vector of A and B. More details on this technique can be found in the [LLM.int8() paper](https://arxiv.org/abs/2208.07339) or in the [blog post about quantization and emergent features](https://timdettmers.com/2022/08/17/llm-int8-and-emergent-features/) on Tim's blog.
 
-While these basic techniques enable us to quanitize Deep Learning models, they usually lead to a drop in accuracy for larger models. The LLM.int8() implementation that we integrated into Hugging Face Transformers and Accelerate libraries is the first technique that does not degrade performance even for large models with 176B parameters, such as BLOOM.
-
+While these basic techniques enable us to quanitize Deep Learning models, they usually lead to a drop in accuracy for larger models. **The LLM.int8() implementation that we integrated into Hugging Face Transformers and Accelerate libraries is the first technique that does not degrade performance even for large models with 176B parameters, such as BLOOM.**
 
 ## A gentle summary of LLM.int8(): zero degradation matrix multiplication for Large Language Models
 
-In LLM.int8(), we have demonstrated that it is crucial to comprehend the scale-dependent emergent properties of transformers in order to understand why traditional quantization fails for large models. We demonstrate that performance deterioration is caused by outlier features, which we explain in the next section. The LLM.int8() algorithm itself can be explain as follows.
+In LLM.int8(), we have demonstrated that it is crucial to comprehend the scale-dependent emergent properties of transformers in order to understand why traditional quantization fails for large models. We demonstrate that performance deterioration is caused by **outlier features**, which we explain in the next section. The LLM.int8() algorithm itself can be explain as follows.
 
 In essence, LLM.int8() seeks to complete the matrix multiplication computation in three steps:
-1. From the input hidden states, extract the outliers (i.e. values that are larger than a certain threshold) by column.
-2. Perform the matrix multiplication of the outliers in FP16 and the non-outliers in int8.
-3. Dequantize the non-outlier results and add both outlier and non-outlier results together to receive the full result in FP16.
+1. **From the input hidden states, extract the outliers (i.e. values that are larger than a certain threshold) by column.**
+2. **Perform the matrix multiplication of the outliers in FP16 and the non-outliers in int8.**
+3. **Dequantize the non-outlier results and add both outlier and non-outlier results together to receive the full result in FP16.**
 
 These steps can be summarized in the following animation:
 
@@ -109,14 +106,13 @@ These steps can be summarized in the following animation:
 
 ### The importance of outlier features
 
-A value that is outside the range of some numbers' global distribution is generally referred to as an outlier. Outlier detection has been widely used and covered in the current literature, and having prior knowledge of the distribution of your features helps with the task of outlier detection. More specifically, we have observed that classic quantization at scale fails for transformer-based models >6B parameters. While large outlier features are also present in smaller models, we observe that a certain threshold these outliers from highly systematic patterns across transformers which are present in every layer of the transformer. For more details on these phenomena see the [LLM.int8() paper](https://arxiv.org/abs/2208.07339) and [emergent features blog post](https://timdettmers.com/2022/08/17/llm-int8-and-emergent-features/).
+**A value that is outside the range of some numbers' global distribution is generally referred to as an outlier.** Outlier detection has been widely used and covered in the current literature, and having prior knowledge of the distribution of your features helps with the task of outlier detection. More specifically, we have observed that classic quantization at scale fails for transformer-based models >6B parameters. While large outlier features are also present in smaller models, we observe that a certain threshold these outliers from highly systematic patterns across transformers which are present in every layer of the transformer. For more details on these phenomena see the [LLM.int8() paper](https://arxiv.org/abs/2208.07339) and [emergent features blog post](https://timdettmers.com/2022/08/17/llm-int8-and-emergent-features/).
 
-As mentioned earlier, 8-bit precision is extremely constrained, therefore quantizing a vector with several big values can produce wildly erroneous results. Additionally, because of a built-in characteristic of the transformer-based architecture that links all the elements together, these errors tend to compound as they get propagated across multiple layers. Therefore, mixed-precision decomposition has been developed to facilitate efficient quantization with such extreme outliers. It is discussed next.
+A**s mentioned earlier, 8-bit precision is extremely constrained, therefore quantizing a vector with several big values can produce wildly erroneous results. Additionally, because of a built-in characteristic of the transformer-based architecture that links all the elements together, these errors tend to compound as they get propagated across multiple layers.** Therefore, **mixed-precision decomposition** has been developed to facilitate efficient quantization with such extreme outliers. It is discussed next.
 
 ### Inside the MatMul
 
-Once the hidden states are computed we extract the outliers using a custom threshold and we decompose the matrix into two parts as explained above. We found that extracting all outliers with magnitude 6 or greater in this way recoveres full inference performance. The outlier part is done in fp16 so it is a classic matrix multiplication, whereas the 8-bit matrix multiplication is done by quantizing the weights and hidden states into 8-bit precision using vector-wise quantization -- that is, row-wise quantization for the hidden state and column-wise quantization for the weight matrix.
-After this step, the results are dequantized and returned in half-precision in order to add them to the first matrix multiplication.
+**Once the hidden states are computed we extract the outliers using a custom threshold and we decompose the matrix into two parts as explained above.** We found that extracting all outliers with magnitude 6 or greater in this way recoveres full inference performance. **The outlier part is done in fp16 so it is a classic matrix multiplication, whereas the 8-bit matrix multiplication is done by quantizing the weights and hidden states into 8-bit precision using vector-wise quantization -- that is, row-wise quantization for the hidden state and column-wise quantization for the weight matrix. After this step, the results are dequantized and returned in half-precision in order to add them to the first matrix multiplication.**
 
 ![Matmul.png](../images/00008_hf_bitsandbytes_integration/Matmul.png)
 
@@ -157,10 +153,7 @@ We indeed observe 0 performance degradation for those models since the absolute 
 
 ### Is it faster than native models?
 
-
-The main purpose of the LLM.int8() method is to make large models more accessible without performance degradation. But the method would be less useful if it is very slow. So we benchmarked the generation speed of multiple models.
-We find that BLOOM-176B with LLM.int8() is about 15% to 23% slower than the fp16 version – which is still quite acceptable. We found larger slowdowns for smaller models, like T5-3B and T5-11B. We worked hard to speed up these small models. Within a day, we could improve inference per token from 312 ms to 173 ms for T5-3B and from 45 ms to 25 ms for T5-11B. Additionally, issues were [already identified](https://github.com/TimDettmers/bitsandbytes/issues/6#issuecomment-1211345635), and LLM.int8() will likely be faster still for small models in upcoming releases. For now, the current numbers are in the table below.
-
+The main purpose of the LLM.int8() method is to make large models more accessible without performance degradation. But the method would be less useful if it is very slow. So we benchmarked the generation speed of multiple models. **We find that BLOOM-176B with LLM.int8() is about 15% to 23% slower than the fp16 version – which is still quite acceptable.** We found larger slowdowns for smaller models, like T5-3B and T5-11B. We worked hard to speed up these small models. Within a day, we could improve inference per token from 312 ms to 173 ms for T5-3B and from 45 ms to 25 ms for T5-11B. Additionally, issues were [already identified](https://github.com/TimDettmers/bitsandbytes/issues/6#issuecomment-1211345635), and LLM.int8() will likely be faster still for small models in upcoming releases. For now, the current numbers are in the table below.
 
 | Precision      | Number of parameters | Hardware     | Time per token in milliseconds for Batch Size 1 | Time per token in milliseconds for Batch Size 8 | Time per token in milliseconds for Batch Size 32 |
 | -------------- | -------------------- | ------------ | ----------------------------------------------- | ----------------------------------------------- | ------------------------------------------------ |
@@ -181,9 +174,9 @@ Next let's discuss the specifics of the Hugging Face `transformers` integration.
 
 ### Usage
 
-The module responsible for the whole magic described in this blog post is called `Linear8bitLt` and you can easily import it from the `bitsandbytes` library. It is derived from a classic `torch.nn` Module and can be easily used and deployed in your architecture with the code described below.
+**The module responsible for the whole magic described in this blog post is called `Linear8bitLt` and you can easily import it from the `bitsandbytes` library. It is derived from a classic `torch.nn` Module and can be easily used and deployed in your architecture with the code described below.**
 
-Here is a step-by-step example of the following use case: let's say you want to convert a small model in int8 using `bitsandbytes`.
+**Here is a step-by-step example of the following use case: let's say you want to convert a small model in int8 using `bitsandbytes`.**
 
 1. First we need the correct imports below!
 
@@ -195,7 +188,7 @@ import bitsandbytes as bnb
 from bnb.nn import Linear8bitLt
 ```
 
-2. Then you can define your own model. Note that you can convert a checkpoint or model of any precision to 8-bit (FP16, BF16 or FP32) but, currently, the input of the model has to be FP16 for our Int8 module to work. So we treat our model here as a fp16 model.
+2. **Then you can define your own model. Note that you can convert a checkpoint or model of any precision to 8-bit (FP16, BF16 or FP32) but, currently, the input of the model has to be FP16 for our Int8 module to work. So we treat our model here as a fp16 model.**
 
 ```py
 fp16_model = nn.Sequential(
@@ -204,14 +197,14 @@ fp16_model = nn.Sequential(
 )
 ```
 
-3. Let's say you have trained your model on your favorite dataset and task! Now time to save the model:
+3. **Let's say you have trained your model on your favorite dataset and task! Now time to save the model:**
 
 ```py
 [... train the model ...]
 torch.save(fp16_model.state_dict(), "model.pt")
 ```
 
-4. Now that your `state_dict` is saved, let us define an int8 model:
+4. **Now that your `state_dict` is saved, let us define an int8 model:**
 
 ```py
 int8_model = nn.Sequential(
@@ -220,7 +213,7 @@ int8_model = nn.Sequential(
 )
 ```
 
-Here it is very important to add the flag `has_fp16_weights`. By default, this is set to `True` which is used to train in mixed Int8/FP16 precision. However, we are interested in memory efficient inference for which we need to use `has_fp16_weights=False`.
+**Here it is very important to add the flag `has_fp16_weights`. By default, this is set to `True` which is used to train in mixed Int8/FP16 precision. However, we are interested in memory efficient inference for which we need to use `has_fp16_weights=False`.**
 
 5. Now time to load your model in 8-bit!
 
@@ -229,7 +222,7 @@ int8_model.load_state_dict(torch.load("model.pt"))
 int8_model = int8_model.to(0) # Quantization happens here
 ```
 
-Note that the quantization step is done in the second line once the model is set on the GPU. If you print `int8_model[0].weight` before calling the `.to` function you get:
+**Note that the quantization step is done in the second line once the model is set on the GPU.** If you print `int8_model[0].weight` before calling the `.to` function you get:
 
 ```
 int8_model[0].weight
@@ -259,8 +252,7 @@ tensor([[   3,  -47,   54,  ...,   -5,  -44,   47],
         device='cuda:0', dtype=torch.int8, requires_grad=True)
 ```
 
-The weights values are "truncated" as we have seen when explaining quantization in the previous sections. Also, the values seem to be distributed between [-127, 127].
-You might also wonder how to retrieve the FP16 weights in order to perform the outlier MatMul in fp16? You can simply do:
+The weights values are "truncated" as we have seen when explaining quantization in the previous sections. Also, the values seem to be distributed between [-127, 127]. **You might also wonder how to retrieve the FP16 weights in order to perform the outlier MatMul in fp16? You can simply do:**
 
 ```py
 (int8_model[0].weight.CB * int8_model[0].weight.SCB) / 127
@@ -281,7 +273,7 @@ tensor([[ 0.0028, -0.0459,  0.0522,  ..., -0.0049, -0.0428,  0.0462],
 
 Which is close enough to the original FP16 values (2 print outs up)!
 
-6. Now you can safely infer using your model by making sure your input is on the correct GPU and is in FP16:
+6. **Now you can safely infer using your model by making sure your input is on the correct GPU and is in FP16:**
 
 ```py
 input_ = torch.randn((1, 64), dtype=torch.float16)
@@ -290,14 +282,13 @@ hidden_states = int8_model(input_.to(torch.device('cuda', 0)))
 
 Check out [the example script](/../images/00008_hf_bitsandbytes_integration/example.py) for the full minimal code!
 
-As a side note, you should be aware that these modules differ slightly from the `nn.Linear` modules in that their parameters come from the `bnb.nn.Int8Params` class rather than the `nn.Parameter` class. You'll see later that this presented an additional obstacle on our journey!
+**As a side note, you should be aware that these modules differ slightly from the `nn.Linear` modules in that their parameters come from the `bnb.nn.Int8Params` class rather than the `nn.Parameter` class.** You'll see later that this presented an additional obstacle on our journey!
 
 Now the time has come to understand how to integrate that into the `transformers` library!
 
-
 ### `accelerate` is all you need
 
-When working with huge models, the `accelerate` library includes a number of helpful utilities. The `init_empty_weights` method is especially helpful because any model, regardless of size, may be initialized with this method as a context manager without allocating any memory for the model weights.
+When working with huge models, the `accelerate` library includes a number of helpful utilities. **The `init_empty_weights` method is especially helpful because any model, regardless of size, may be initialized with this method as a context manager without allocating any memory for the model weights.**
 
 ```py
 import torch.nn as nn
@@ -307,7 +298,7 @@ with init_empty_weights():
     model = nn.Sequential([nn.Linear(100000, 100000) for _ in range(1000)]) # This will take ~0 RAM!
 ```
 
-The initialized model will be put on PyTorch's `meta` device, an underlying mechanism to represent shape and dtype without allocating memory for storage. How cool is that?
+**The initialized model will be put on PyTorch's `meta` device, an underlying mechanism to represent shape and dtype without allocating memory for storage. How cool is that?**
 
 Initially, this function is called inside the `.from_pretrained` function and overrides all parameters to `torch.nn.Parameter`. This would not fit our requirement since we want to keep the `Int8Params` class in our case for `Linear8bitLt` modules as explained above. We managed to fix that on [the following PR](https://github.com/huggingface/accelerate/pull/519) that modifies:
 
@@ -323,7 +314,7 @@ kwargs = module._parameters[name].__dict__
 module._parameters[name] = param_cls(module._parameters[name].to(torch.device("meta")), **kwargs)
 ```
 
-Now that this is fixed, we can easily leverage this context manager and play with it to replace all `nn.Linear` modules to `bnb.nn.Linear8bitLt` at no memory cost using a custom function!
+Now that this is fixed, **we can easily leverage this context manager and play with it to replace all `nn.Linear` modules to `bnb.nn.Linear8bitLt` at no memory cost using a custom function!**
 
 ```py
 def replace_8bit_linear(model, threshold=6.0, module_to_not_convert="lm_head"):
@@ -343,13 +334,11 @@ def replace_8bit_linear(model, threshold=6.0, module_to_not_convert="lm_head"):
     return model
 ```
 
-This function recursively replaces all `nn.Linear` layers of a given model initialized on the `meta` device and replaces them with a `Linear8bitLt` module. The attribute `has_fp16_weights` has to be set to `False` in order to directly load the weights in `int8` together with the quantization statistics.
+**This function recursively replaces all `nn.Linear` layers of a given model initialized on the `meta` device and replaces them with a `Linear8bitLt` module. The attribute `has_fp16_weights` has to be set to `False` in order to directly load the weights in `int8` together with the quantization statistics.**
 
-We also discard the replacement for some modules (here the `lm_head`) since we want to keep the latest in their native precision for more precise and stable results.
+**We also discard the replacement for some modules (here the `lm_head`) since we want to keep the latest in their native precision for more precise and stable results.**
 
-But it isn't over yet! The function above is executed under the `init_empty_weights` context manager which means that the new model will be still in the `meta` device.
-For models that are initialized under this context manager, `accelerate` will manually load the parameters of each module and move them to the correct devices.
-In `bitsandbytes`, setting a `Linear8bitLt` module's device is a crucial step (if you are curious, you can check the code snippet [here](https://github.com/TimDettmers/bitsandbytes/blob/bd515328d70f344f935075f359c5aefc616878d5/bitsandbytes/nn/modules.py#L94)) as we have seen in our toy script.
+**But it isn't over yet! The function above is executed under the `init_empty_weights` context manager which means that the new model will be still in the `meta` device. For models that are initialized under this context manager, `accelerate` will manually load the parameters of each module and move them to the correct devices.** In `bitsandbytes`, setting a `Linear8bitLt` module's device is a crucial step (if you are curious, you can check the code snippet [here](https://github.com/TimDettmers/bitsandbytes/blob/bd515328d70f344f935075f359c5aefc616878d5/bitsandbytes/nn/modules.py#L94)) as we have seen in our toy script.
 
 Here the quantization step fails when calling it twice. We had to come up with an implementation of `accelerate`'s `set_module_tensor_to_device` function (termed as `set_module_8bit_tensor_to_device`) to make sure we don't call it twice. Let's discuss this in detail in the section below!
 
@@ -362,10 +351,11 @@ Once you load your model and set it on the correct devices, sometimes you still 
 ### Wrapping it all up
 
 Therefore the ultimate recipe is:
-1. Initialize a model in the `meta` device with the correct modules
-2. Set the parameters one by one on the correct GPU device and make sure you never do this procedure twice!
-3. Put new keyword arguments in the correct place everywhere, and add some nice documentation
+1. **Initialize a model in the `meta` device with the correct modules**
+2. **Set the parameters one by one on the correct GPU device and make sure you never do this procedure twice!**
+3. **Put new keyword arguments in the correct place everywhere, and add some nice documentation**
 4. Add very extensive tests! Check our tests [here](https://github.com/huggingface/transformers/blob/main/tests/mixed_int8/test_mixed_int8.py) for more details
+
 This may sound quite easy, but we went through many hard debugging sessions together, often times involving CUDA kernels!
 
 All said and done, this integration adventure was very fun; from deep diving and doing some "surgery" on different libraries to aligning everything and making it work!
@@ -392,12 +382,11 @@ pip install git+https://github.com/huggingface/transformers.git
 
 Check out the Google Colab demos for running 8bit models on a BLOOM-3B model!
 
-Here is the demo for running T5-11B. The T5-11B model checkpoint is in FP32 which uses 42GB of memory and does not fit on Google Colab. With our 8-bit modules it only uses 11GB and fits easily:
+**Here is the demo for running T5-11B. The T5-11B model checkpoint is in FP32 which uses 42GB of memory and does not fit on Google Colab. With our 8-bit modules it only uses 11GB and fits easily:**
 
 [![Open In Colab: T5-11b demo](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1YORPWx4okIHXnjW7MSAidXN29mPVNT7F?usp=sharing)
 
-
-Or this demo for BLOOM-3B:
+**Or this demo for BLOOM-3B:**
 
 [![Open In Colab: BLOOM-3b demo](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huggingface/blog/blob/main/notebooks/HuggingFace_int8_demo.ipynb)
 
@@ -425,13 +414,3 @@ CPU devices do not support 8-bit cores, as was stated at the beginning of this b
 ### Scaling up on other modalities
 
 Currently, language models dominate very large models. Leveraging this method on very large vision, audio, and multi-modal models might be an interesting thing to do for better accessibility in the coming years as these models become more accessible.
-
-## Credits
-
-Huge thanks to the following who contributed to improve the readability of the article as well as contributed in the integration procedure in `transformers` (listed in alphabetic order):
-JustHeuristic (Yozh),
-Michael Benayoun,
-Stas Bekman,
-Steven Liu,
-Sylvain Gugger,
-Tim Dettmers
